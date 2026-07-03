@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 
-// ─── Türkiye İlleri (Yurtiçi / İhracat ayırımı için) ─────────────────────────
+// ─── Türkiye İlleri ──────────────────────────────────────────────────────────
 const TR_ILLER = new Set([
   "ADANA","ADIYAMAN","AFYONKARAHİSAR","AĞRI","AKSARAY","AMASYA","ANKARA",
   "ANTALYA","ARDAHAN","ARTVİN","AYDIN","BALIKESİR","BARTIN","BATMAN",
@@ -19,119 +20,140 @@ const TR_ILLER = new Set([
 ]);
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
-interface YIRow  { id:string; musteri:string; sebep:string; sku:string; adet:string; not:string; }
-interface IHRow  { id:string; musteri:string; ulke:string; ilkTarih:string; cikisTarih:string; sebep:string; sku:string; adet:string; }
-interface MKRow  { id:string; firma:string; depo:string; belgeNo:string; belgeNo2:string; tarih:string; cari:string; adet:string; cesit:string; durum:string; }
+interface YIRow { id:string; musteri:string; sebep:string; sku:string; adet:string; not:string; }
+interface IHRow { id:string; musteri:string; ulke:string; ilkTarih:string; cikisTarih:string; sebep:string; sku:string; adet:string; }
+interface MKRow { id:string; firma:string; depo:string; belgeNo:string; belgeNo2:string; tarih:string; cari:string; adet:string; cesit:string; durum:string; }
 type Renk = "green"|"yellow"|"red";
 interface Status { durum:string; renk:Renk; terminGun:number; sonTermin:string; }
 
-// ─── Yardımcı Fonksiyonlar ────────────────────────────────────────────────────
+// ─── Hesaplama ────────────────────────────────────────────────────────────────
 function calcTermin(sku:string, sebep=""):number {
   if (sebep.toUpperCase().includes("ELLEÇLEME")) return 7;
   const n = parseInt(sku)||0;
   if (n<=50) return 1; if (n<=100) return 2; if (n<=250) return 4; return 7;
 }
-
 function calcStatus(row:Partial<IHRow>):Status|null {
   const { ilkTarih, cikisTarih, sebep="", sku } = row;
   if (!ilkTarih||!sku) return null;
-  const terminGun = calcTermin(sku,sebep);
+  const g = calcTermin(sku,sebep);
   const ilk = new Date(ilkTarih);
-  const son = new Date(ilk); son.setDate(ilk.getDate()+terminGun);
+  const son = new Date(ilk); son.setDate(ilk.getDate()+g);
   const today = new Date(); today.setHours(0,0,0,0);
-  const isGnd = sebep==="GÖNDERİLDİ"||!!cikisTarih;
+  const isG = sebep==="GÖNDERİLDİ"||!!cikisTarih;
   const cikis = cikisTarih ? new Date(cikisTarih) : today;
   let durum:string, renk:Renk;
-  if (isGnd) {
-    durum = cikis<=son ? "ZAMANINDA ÇIKTI" : "GEÇ ÇIKTI";
-    renk  = cikis<=son ? "green" : "red";
-  } else {
-    durum = today<=son ? "TERMİN SÜRESİ İÇİNDE" : "TERMİN AŞTI — ACİL";
-    renk  = today<=son ? "yellow" : "red";
-  }
-  return { durum, renk, terminGun, sonTermin: son.toLocaleDateString("tr-TR") };
+  if (isG) { durum=cikis<=son?"ZAMANINDA ÇIKTI":"GEÇ ÇIKTI"; renk=cikis<=son?"green":"red"; }
+  else      { durum=today<=son?"TERMİN SÜRESİ İÇİNDE":"TERMİN AŞTI — ACİL"; renk=today<=son?"yellow":"red"; }
+  return { durum, renk, terminGun:g, sonTermin:son.toLocaleDateString("tr-TR") };
 }
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 const uid      = () => Math.random().toString(36).slice(2,10);
-const s        = (v:any) => String(v??"").trim();
-const ns       = (v:any) => { const n=parseFloat(s(v)); return isNaN(n)?"":String(Math.round(n)); };
+const st       = (v:any) => String(v??"").trim();
+const ns       = (v:any) => { const n=parseFloat(st(v)); return isNaN(n)?"":String(Math.round(n)); };
 const fmtDate  = (d:string) => d ? new Date(d).toLocaleDateString("tr-TR") : "—";
+const fmtNum   = (n:string|number) => { const v=parseInt(String(n)); return isNaN(v)?"0":v.toLocaleString("tr-TR"); };
 
-// Excel seri tarihi → YYYY-MM-DD
 function xlDate(val:any):string {
   if (!val&&val!==0) return "";
-  const serial = Math.floor(typeof val==="number" ? val : parseFloat(s(val)));
+  const serial = Math.floor(typeof val==="number"?val:parseFloat(st(val)));
   if (isNaN(serial)||serial<1) return "";
   const d = new Date(Math.round((serial-25569)*86400*1000));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
 }
-
-// Zeus tarih string → YYYY-MM-DD ("02.07.2026 10:40:05")
 function parseTrDate(val:string):string {
-  if (!val) return todayStr();
-  const m = val.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  const m = val?.match(/(\d{2})\.(\d{2})\.(\d{4})/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : todayStr();
 }
 
-// ─── Stil Sabitleri ───────────────────────────────────────────────────────────
+// ─── Renk Haritası ───────────────────────────────────────────────────────────
 const SC:Record<Renk,string> = {
-  green: "bg-green-50 text-green-700 border-green-200",
-  yellow:"bg-amber-50 text-amber-700 border-amber-200",
-  red:   "bg-red-50   text-red-700   border-red-200",
+  green: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  yellow:"bg-amber-50   text-amber-700   border-amber-200",
+  red:   "bg-red-50     text-red-700     border-red-200",
 };
 const SB:Record<Renk,string> = {
-  green:"border-l-green-500", yellow:"border-l-amber-500", red:"border-l-red-500",
+  green:"border-l-emerald-500", yellow:"border-l-amber-500", red:"border-l-red-500",
+};
+const RENK_DOT:Record<Renk,string> = {
+  green:"bg-emerald-500", yellow:"bg-amber-400", red:"bg-red-500",
 };
 
-// ─── Küçük Bileşenler ─────────────────────────────────────────────────────────
-const Lbl = ({c}:{c:string}) => <span className="text-xs text-slate-500 font-medium mb-1 block">{c}</span>;
+// ─── Atom Bileşenler ──────────────────────────────────────────────────────────
+const Lbl = ({c}:{c:string}) => <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">{c}</span>;
+
 const Inp = ({ph,val,set,tp="text"}:{ph?:string;val:string;set:(v:string)=>void;tp?:string}) => (
   <input type={tp} inputMode={tp==="number"?"numeric":undefined} placeholder={ph} value={val}
     onChange={e=>set(e.target.value)}
-    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30 focus:border-[#1B2A4A]" />
+    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
+      placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/20 focus:border-[#1B2A4A]
+      transition-all" />
 );
-const Sel = ({val,set,opts}:{val:string;set:(v:string)=>void;opts:string[]}) => (
+
+const Sel = ({val,set,opts,ph="— Seçin —"}:{val:string;set:(v:string)=>void;opts:string[];ph?:string}) => (
   <select value={val} onChange={e=>set(e.target.value)}
-    className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30">
-    <option value="">— Seçin —</option>
+    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800
+      focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/20 focus:border-[#1B2A4A] transition-all">
+    <option value="">{ph}</option>
     {opts.map(o=><option key={o}>{o}</option>)}
   </select>
 );
-const AddBtn = ({onClick}:{onClick:()=>void}) => (
+
+const PrimaryBtn = ({children,onClick,cls=""}:{children:React.ReactNode;onClick:()=>void;cls?:string}) => (
   <button onClick={onClick}
-    className="w-full bg-[#1B2A4A] text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-[#243650] transition-colors">
-    Ekle
+    className={`w-full bg-[#1B2A4A] hover:bg-[#243650] active:scale-[0.98] text-white rounded-xl py-3
+      text-sm font-bold tracking-wide transition-all shadow-sm ${cls}`}>
+    {children}
   </button>
 );
-const DelBtn = ({onClick}:{onClick:()=>void}) => (
-  <button onClick={onClick} className="text-slate-300 hover:text-red-400 transition-colors text-xl leading-none pl-2 flex-shrink-0">×</button>
-);
-const Card = ({children,cls=""}:{children:React.ReactNode;cls?:string}) => (
-  <div className={`bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-4 ${cls}`}>{children}</div>
-);
-const CardTitle = ({c}:{c:string}) => <div className="text-xs font-semibold text-[#C8962E] uppercase tracking-wide mb-3">{c}</div>;
-const SumCard = ({label,val,color}:{label:string;val:string|number;color:string}) => (
-  <div className={`flex-1 bg-white rounded-xl border border-slate-100 border-l-4 ${color} shadow-sm p-3 text-center`}>
-    <div className="text-xl font-bold text-slate-800">{val}</div>
-    <div className="text-xs text-slate-500 mt-0.5">{label}</div>
-  </div>
-);
-const Empty = ({t}:{t:string}) => <div className="text-center text-slate-400 py-10 text-sm">{t}</div>;
 
-// ─── Upload Butonu ────────────────────────────────────────────────────────────
-type UpSt = "idle"|"ok"|"err"|"loading";
-function UploadZone({label,icon,st,msg,onClick}:{label:string;icon:string;st:UpSt;msg:string;onClick:()=>void}) {
+const DelBtn = ({onClick}:{onClick:()=>void}) => (
+  <button onClick={onClick}
+    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 text-slate-400
+      flex items-center justify-center text-lg transition-colors flex-shrink-0 ml-2">
+    ×
+  </button>
+);
+
+// ─── Stat Kartı ──────────────────────────────────────────────────────────────
+function StatCard({label,val,sub,color,big=false}:{label:string;val:string|number;sub?:string;color:string;big?:boolean}) {
+  return (
+    <div className={`flex-1 rounded-2xl border shadow-sm overflow-hidden ${big?"p-4":"p-3"} ${color}`}>
+      <div className={`font-black tabular-nums ${big?"text-3xl":"text-2xl"}`}>{val}</div>
+      <div className="text-xs font-semibold mt-0.5 opacity-70 uppercase tracking-wide">{label}</div>
+      {sub && <div className="text-xs opacity-50 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Kayıt Kartı ─────────────────────────────────────────────────────────────
+function RowCard({borderCls,children}:{borderCls:string;children:React.ReactNode}) {
+  return (
+    <div className={`bg-white rounded-2xl border border-slate-100 border-l-4 ${borderCls}
+      shadow-sm hover:shadow-md transition-shadow p-4 mb-3 flex items-start justify-between gap-2`}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Upload Bölgesi ──────────────────────────────────────────────────────────
+type UpSt = "idle"|"loading"|"ok"|"err";
+function UpZone({label,icon,bg,st:upSt,msg,onClick}:{label:string;icon:string;bg:string;st:UpSt;msg:string;onClick:()=>void}) {
   return (
     <button onClick={onClick}
-      className={`flex-1 border-2 border-dashed rounded-xl p-4 text-center text-sm font-medium transition-all min-w-0
-        ${st==="loading" ? "border-slate-200 text-slate-400 cursor-wait"
-        : st==="ok"      ? "border-green-400 bg-green-50 text-green-700"
-        : st==="err"     ? "border-red-300 bg-red-50 text-red-600"
-        : "border-[#1B2A4A]/25 hover:border-[#C8962E] hover:bg-amber-50 text-slate-600"}`}>
-      <div className="text-xl mb-1">{st==="ok"?"✅":st==="err"?"❌":icon}</div>
-      <div className="font-semibold">{st==="ok"||st==="err" ? msg : label}</div>
-      {st==="idle" && <div className="text-xs text-slate-400 mt-1">.xlsx / .xls</div>}
+      className={`flex-1 min-w-0 rounded-2xl border-2 border-dashed p-5 flex flex-col items-center gap-2
+        text-center transition-all
+        ${upSt==="loading" ? "border-slate-200 bg-slate-50 cursor-wait opacity-60"
+        : upSt==="ok"  ? "border-emerald-300 bg-emerald-50"
+        : upSt==="err" ? "border-red-300 bg-red-50"
+        : `${bg} hover:scale-[1.02] active:scale-[0.98]`}`}>
+      <span className="text-3xl">{upSt==="ok"?"✅":upSt==="err"?"❌":upSt==="loading"?"⏳":icon}</span>
+      <div>
+        <div className={`text-sm font-bold ${upSt==="ok"?"text-emerald-700":upSt==="err"?"text-red-600":"text-slate-700"}`}>
+          {upSt==="ok"||upSt==="err" ? msg : label}
+        </div>
+        {upSt==="idle" && <div className="text-xs text-slate-400 mt-0.5">.xlsx / .xls</div>}
+      </div>
     </button>
   );
 }
@@ -141,21 +163,17 @@ export default function GunSonuPage() {
   type TabKey = "yurtici"|"ihracat"|"malkabul";
   const [tab, setTab] = useState<TabKey>("yurtici");
 
-  // Yurtiçi
   const [yiSiparis, setYiSiparis] = useState("");
   const [yiFatura,  setYiFatura]  = useState("");
   const [yiRows,    setYiRows]    = useState<YIRow[]>([]);
   const [yiF, setYiF] = useState<Omit<YIRow,"id">>({musteri:"",sebep:"",sku:"",adet:"",not:""});
 
-  // İhracat
   const [ihRows, setIhRows] = useState<IHRow[]>([]);
   const [ihF, setIhF] = useState<Omit<IHRow,"id">>({musteri:"",ulke:"",ilkTarih:todayStr(),cikisTarih:"",sebep:"",sku:"",adet:""});
 
-  // Mal Kabul
   const [mkRows, setMkRows] = useState<MKRow[]>([]);
-  const [mkF, setMkF] = useState<Omit<MKRow,"id">>({firma:"",depo:"TEM.34",belgeNo:"",belgeNo2:"",tarih:todayStr(),cari:"",adet:"",cesit:"",durum:"İŞLEMDE"});
+  const [mkF, setMkF] = useState<Omit<MKRow,"id">>({firma:"",depo:"TEM.34",belgeNo:"",belgeNo2:"",tarih:todayStr(),cari:"",adet:"",cesit:"",durum:"BAŞLAMADI"});
 
-  // Upload state
   const [stIt, setStIt] = useState<UpSt>("idle"); const [msgIt, setMsgIt] = useState("");
   const [stIr, setStIr] = useState<UpSt>("idle"); const [msgIr, setMsgIr] = useState("");
   const refIt = useRef<HTMLInputElement>(null);
@@ -163,127 +181,89 @@ export default function GunSonuPage() {
 
   const yiKalan = (parseInt(yiSiparis)||0)-(parseInt(yiFatura)||0);
   const liveS   = ihF.sku ? calcStatus(ihF) : null;
+  const ihSts   = ihRows.map(r=>calcStatus(r));
+  const mkTot   = mkRows.reduce((t,r)=>t+(parseInt(r.adet)||0),0);
 
-  // ─── İş Talepleri Parse (Yurtiçi + İhracat) ─────────────────────────────
+  // ── Parse: İş Talepleri ───────────────────────────────────────────────────
   async function parseIsTalepleri(file:File) {
     setStIt("loading");
     try {
-      const XLSX = await import("xlsx");
-      const data:any[][] = XLSX.utils.sheet_to_json(
-        XLSX.read(await file.arrayBuffer()).Sheets["data"] ??
-        XLSX.read(await file.arrayBuffer()).Sheets[Object.keys(XLSX.read(await file.arrayBuffer()).Sheets)[0]],
-        { header:1, defval:"" }
-      );
-      // Başlık satırını bul
-      const hi = data.findIndex(r=>r.some((c:any)=>s(c)==="Müşteri"));
-      const hRow = hi>=0 ? data[hi] : data[0];
-      const iMus = hRow.findIndex((c:any)=>s(c)==="Müşteri");
-      const iIl  = hRow.findIndex((c:any)=>s(c)==="İl");
-      const iTar = hRow.findIndex((c:any)=>s(c).includes("Tarih"));
-      const iAdt = hRow.findIndex((c:any)=>s(c)==="Adet");
-      const iCes = hRow.findIndex((c:any)=>s(c)==="Çeşit");
-      const start = hi>=0 ? hi+1 : 1;
-
-      const yiNew:YIRow[] = [];
-      const ihNew:IHRow[] = [];
-      let yiFatCount = 0;
-
-      for (let i=start; i<data.length; i++) {
-        const r   = data[i];
-        const mus = s(iMus>=0 ? r[iMus] : r[3]);
-        if (!mus) continue;
-        const il  = s(iIl>=0 ? r[iIl] : r[4]).toUpperCase();
-        const tar = parseTrDate(s(iTar>=0 ? r[iTar] : r[2]));
-        const adt = ns(iAdt>=0 ? r[iAdt] : r[6]);
-        const ces = ns(iCes>=0 ? r[iCes] : r[7]);
-
-        if (TR_ILLER.has(il)) {
-          // Yurtiçi — fatura edilen listesi
-          yiFatCount++;
-          // Yurtiçi'de tamamlananları ayrıca listeleme, sadece say
-        } else if (il) {
-          // İhracat
-          ihNew.push({
-            id:uid(), musteri:mus, ulke:il,
-            ilkTarih:tar, cikisTarih:"", sebep:"", sku:ces, adet:adt,
-          });
-        }
+      const XLSX  = await import("xlsx");
+      const buf   = await file.arrayBuffer();
+      const wb    = XLSX.read(buf);
+      const ws    = wb.Sheets["data"] ?? wb.Sheets[wb.SheetNames[0]];
+      const data:any[][] = XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      const hi    = data.findIndex(r=>r.some((c:any)=>st(c)==="Müşteri"));
+      const hRow  = hi>=0 ? data[hi] : data[0];
+      const iMus  = hRow.findIndex((c:any)=>st(c)==="Müşteri");
+      const iIl   = hRow.findIndex((c:any)=>st(c)==="İl");
+      const iTar  = hRow.findIndex((c:any)=>st(c).includes("Tarih"));
+      const iAdt  = hRow.findIndex((c:any)=>st(c)==="Adet");
+      const iCes  = hRow.findIndex((c:any)=>st(c)==="Çeşit");
+      const rows  = data.slice(hi>=0?hi+1:1);
+      let fatCount=0; const ihNew:IHRow[]=[];
+      for (const r of rows) {
+        const mus = st(iMus>=0?r[iMus]:r[3]); if (!mus) continue;
+        const il  = st(iIl>=0?r[iIl]:r[4]).toUpperCase();
+        const tar = parseTrDate(st(iTar>=0?r[iTar]:r[2]));
+        const adt = ns(iAdt>=0?r[iAdt]:r[6]);
+        const ces = ns(iCes>=0?r[iCes]:r[7]);
+        if (TR_ILLER.has(il)) { fatCount++; }
+        else if (il) { ihNew.push({id:uid(),musteri:mus,ulke:il,ilkTarih:tar,cikisTarih:"",sebep:"",sku:ces,adet:adt}); }
       }
-
-      setYiFatura(String(yiFatCount));
+      setYiFatura(String(fatCount));
       setIhRows(r=>[...r,...ihNew]);
-      setMsgIt(`${yiFatCount} Yurtiçi + ${ihNew.length} İhracat kaydı okundu`);
-      setStIt("ok");
-      setTab("yurtici");
-    } catch(e) {
-      console.error(e);
-      setMsgIt("Dosya okunamadı — Zeus formatı kontrol edin");
-      setStIt("err");
-    }
+      setMsgIt(`${fatCount} Yurtiçi · ${ihNew.length} İhracat`);
+      setStIt("ok"); setTab("yurtici");
+    } catch(e) { console.error(e); setMsgIt("Dosya okunamadı"); setStIt("err"); }
   }
 
-  // ─── İrsaliye Parse (Mal Kabul) ──────────────────────────────────────────
+  // ── Parse: İrsaliye ───────────────────────────────────────────────────────
   async function parseIrsaliye(file:File) {
     setStIr("loading");
     try {
       const XLSX = await import("xlsx");
       const wb   = XLSX.read(await file.arrayBuffer());
       const ws   = wb.Sheets["data"] ?? wb.Sheets[wb.SheetNames[0]];
-      const data:any[][] = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
-      const hi   = data.findIndex(r=>r.some((c:any)=>s(c)==="Firma"||s(c)==="FİRMA"));
-      const hRow = hi>=0 ? data[hi] : data[0];
-      // Zeus sütun isimleri: Firma Depo BelgeNo BelgeNo2 Tarih Cari CariİsMi Adet Çeşit Durum
-      const iDep  = hRow.findIndex((c:any)=>s(c)==="Depo");
-      const iBno  = hRow.findIndex((c:any)=>s(c)==="BelgeNo");
-      const iBn2  = hRow.findIndex((c:any)=>s(c)==="BelgeNo2");
-      const iTar  = hRow.findIndex((c:any)=>s(c)==="Tarih");
-      const iCar  = hRow.findIndex((c:any)=>s(c)==="Cari"&&!s(hRow[hRow.indexOf(c)+1]).includes("İsmi"));
-      const iCnm  = hRow.findIndex((c:any)=>s(c).includes("Cari İsmi")||s(c)==="Cari İsmi");
-      const iAdt  = hRow.findIndex((c:any)=>s(c)==="Adet");
-      const iCes  = hRow.findIndex((c:any)=>s(c)==="Çeşit");
-      const iDur  = hRow.findIndex((c:any)=>s(c)==="Durum");
-      const start = hi>=0 ? hi+1 : 1;
-
-      const rows:MKRow[] = [];
-      for (let i=start; i<data.length; i++) {
-        const r = data[i];
-        // Gerçek firma = Cari İsmi (tedarikçi), Firma kolonu her zaman "Başarı Otomotiv"
-        const firma = s(iCnm>=0 ? r[iCnm] : r[6]);
-        if (!firma) continue;
-        const rawDur = s(iDur>=0 ? r[iDur] : r[9]);
-        const durum = rawDur==="Başlamadı"||rawDur==="BAŞLAMADI" ? "BAŞLAMADI"
-                    : rawDur==="İşlemde"||rawDur==="İŞLEMDE"     ? "İŞLEMDE"
-                    : rawDur==="Tamamlandı"||rawDur==="TAMAMLANDI"? "TAMAMLANDI"
-                    : rawDur||"BAŞLAMADI";
-        rows.push({
-          id:uid(), firma,
-          depo:    s(iDep>=0 ? r[iDep] : r[1])||"TEM.34",
-          belgeNo: s(iBno>=0 ? r[iBno] : r[2]),
-          belgeNo2:s(iBn2>=0 ? r[iBn2] : r[3]),
-          tarih:   xlDate(iTar>=0 ? r[iTar] : r[4])||todayStr(),
-          cari:    s(iCar>=0 ? r[iCar] : r[5]),
-          adet:    ns(iAdt>=0 ? r[iAdt] : r[7]),
-          cesit:   ns(iCes>=0 ? r[iCes] : r[8]),
-          durum,
+      const data:any[][] = XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      const hi   = data.findIndex(r=>r.some((c:any)=>st(c)==="Firma"||st(c)==="FİRMA"));
+      const hRow = hi>=0?data[hi]:data[0];
+      const iDep = hRow.findIndex((c:any)=>st(c)==="Depo");
+      const iBno = hRow.findIndex((c:any)=>st(c)==="BelgeNo");
+      const iBn2 = hRow.findIndex((c:any)=>st(c)==="BelgeNo2");
+      const iTar = hRow.findIndex((c:any)=>st(c)==="Tarih");
+      const iCar = hRow.findIndex((c:any)=>st(c)==="Cari"&&!st(c).includes("İsmi"));
+      const iCnm = hRow.findIndex((c:any)=>st(c).includes("Cari İsmi"));
+      const iAdt = hRow.findIndex((c:any)=>st(c)==="Adet");
+      const iCes = hRow.findIndex((c:any)=>st(c)==="Çeşit");
+      const iDur = hRow.findIndex((c:any)=>st(c)==="Durum");
+      const rows:MKRow[]=[];
+      for (let i=(hi>=0?hi+1:1); i<data.length; i++) {
+        const r   = data[i];
+        const fir = st(iCnm>=0?r[iCnm]:r[6]); if (!fir) continue;
+        const raw = st(iDur>=0?r[iDur]:r[9]);
+        const dur = raw==="Başlamadı"?"BAŞLAMADI":raw==="İşlemde"?"İŞLEMDE":raw==="Tamamlandı"?"TAMAMLANDI":raw||"BAŞLAMADI";
+        rows.push({id:uid(),firma:fir,
+          depo:    st(iDep>=0?r[iDep]:r[1])||"TEM.34",
+          belgeNo: st(iBno>=0?r[iBno]:r[2]),
+          belgeNo2:st(iBn2>=0?r[iBn2]:r[3]),
+          tarih:   xlDate(iTar>=0?r[iTar]:r[4])||todayStr(),
+          cari:    st(iCar>=0?r[iCar]:r[5]),
+          adet:    ns(iAdt>=0?r[iAdt]:r[7]),
+          cesit:   ns(iCes>=0?r[iCes]:r[8]),
+          durum:   dur,
         });
       }
       setMkRows(rows);
-      setMsgIr(`${rows.length} irsaliye kaydı okundu`);
-      setStIr("ok");
-      setTab("malkabul");
-    } catch(e) {
-      console.error(e);
-      setMsgIr("Dosya okunamadı — Zeus formatı kontrol edin");
-      setStIr("err");
-    }
+      setMsgIr(`${rows.length} irsaliye · ${rows.reduce((s,r)=>s+(parseInt(r.adet)||0),0).toLocaleString("tr-TR")} adet`);
+      setStIr("ok"); setTab("malkabul");
+    } catch(e) { console.error(e); setMsgIr("Dosya okunamadı"); setStIr("err"); }
   }
 
-  // ─── Ekle / Sil ──────────────────────────────────────────────────────────
   const addYi = ()=>{if(!yiF.musteri.trim())return; setYiRows(r=>[...r,{...yiF,id:uid()}]); setYiF({musteri:"",sebep:"",sku:"",adet:"",not:""});};
   const addIh = ()=>{if(!ihF.musteri.trim())return; setIhRows(r=>[...r,{...ihF,id:uid()}]); setIhF({musteri:"",ulke:"",ilkTarih:todayStr(),cikisTarih:"",sebep:"",sku:"",adet:""});};
-  const addMk = ()=>{if(!mkF.firma.trim())return;   setMkRows(r=>[...r,{...mkF,id:uid()}]); setMkF({firma:"",depo:"TEM.34",belgeNo:"",belgeNo2:"",tarih:todayStr(),cari:"",adet:"",cesit:"",durum:"İŞLEMDE"});};
+  const addMk = ()=>{if(!mkF.firma.trim())return;   setMkRows(r=>[...r,{...mkF,id:uid()}]); setMkF({firma:"",depo:"TEM.34",belgeNo:"",belgeNo2:"",tarih:todayStr(),cari:"",adet:"",cesit:"",durum:"BAŞLAMADI"});};
 
-  // ─── WhatsApp ─────────────────────────────────────────────────────────────
   function shareWA() {
     const d = new Date().toLocaleDateString("tr-TR");
     let msg = `📋 *GÜN SONU RAPORU — ${d}*\n\n`;
@@ -293,130 +273,183 @@ export default function GunSonuPage() {
       if (r.sku)  msg += ` | ${r.sku} SKU`;
       if (r.adet) msg += ` | ${r.adet} Adet`;
       if (r.not)  msg += ` | ${r.not}`;
-      msg += "\n";
+      msg+="\n";
     }); else msg += "Tüm siparişler faturalandı ✅\n";
     msg += `\n*✈️ İHRACAT*\n`;
-    if (ihRows.length===0) msg+="Kayıt yok\n";
+    if (!ihRows.length) msg+="Kayıt yok\n";
     else ihRows.forEach(r=>{
-      const st=calcStatus(r);
-      const e=st?.renk==="green"?"🟢":st?.renk==="yellow"?"🟡":"🔴";
-      msg+=`${e} ${r.musteri} (${r.ulke||"?"}) — ${st?.durum||r.sebep||"—"} | ${r.sku} SKU | ${r.adet} Adet\n`;
+      const s=calcStatus(r);
+      const e=s?.renk==="green"?"🟢":s?.renk==="yellow"?"🟡":"🔴";
+      msg+=`${e} ${r.musteri} (${r.ulke||"?"}) — ${s?.durum||r.sebep||"—"} | ${r.sku} SKU | ${r.adet} Adet\n`;
     });
     msg += `\n*📦 MAL KABUL*\n`;
-    const tot = mkRows.reduce((s,r)=>s+(parseInt(r.adet)||0),0);
-    if (mkRows.length===0) msg+="Kayıt yok\n";
+    if (!mkRows.length) msg+="Kayıt yok\n";
     else {
+      const tot=mkRows.reduce((s,r)=>s+(parseInt(r.adet)||0),0);
       msg+=`${mkRows.length} belge — ${tot.toLocaleString("tr-TR")} adet toplam\n`;
       mkRows.forEach(r=>msg+=`• ${r.firma} | ${r.depo} | ${r.adet} Adet | ${r.durum}\n`);
     }
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
   }
 
-  const ihSts = ihRows.map(r=>calcStatus(r));
-  const mkTot = mkRows.reduce((t,r)=>t+(parseInt(r.adet)||0),0);
-  const TABS:[TabKey,string][] = [["yurtici","🚚 Yurtiçi"],["ihracat","✈️ İhracat"],["malkabul","📦 Mal Kabul"]];
+  const resetAll = () => {
+    setStIt("idle"); setMsgIt(""); setStIr("idle"); setMsgIr("");
+    setYiRows([]); setIhRows([]); setMkRows([]);
+    setYiSiparis(""); setYiFatura("");
+  };
+
+  const longDate = new Date().toLocaleDateString("tr-TR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-100 pb-24">
 
-      {/* HEADER */}
-      <header className="bg-[#1B2A4A] px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-md">
-        <div>
-          <div className="text-[#C8962E] font-bold text-base tracking-wide">BAŞARI OTOMOTİV</div>
-          <div className="text-slate-400 text-xs mt-0.5">
-            Gün Sonu İzleme · {new Date().toLocaleDateString("tr-TR",{day:"2-digit",month:"long",year:"numeric"})}
+      {/* ── HERO HEADER ── */}
+      <header className="relative bg-cover bg-center" style={{backgroundImage:"url('/hero-bg.jpg')"}}>
+        <div className="absolute inset-0" style={{background:"linear-gradient(160deg,rgba(10,18,35,0.95) 0%,rgba(27,42,74,0.88) 60%,rgba(15,28,55,0.92) 100%)"}} />
+        <div className="relative px-5 pt-7 pb-6">
+          {/* Logo + Gönder */}
+          <div className="flex items-start justify-between mb-6">
+            <Image src="/logo-full-color.png" alt="Başarı Otomotiv" width={140} height={36}
+              className="h-9 w-auto object-contain" priority />
+            <button onClick={shareWA}
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-400 active:scale-95
+                text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg transition-all">
+              <span>📤</span> Gönder
+            </button>
+          </div>
+          {/* Başlık */}
+          <h1 className="text-white font-black text-2xl tracking-tight leading-tight">
+            Gün Sonu İzleme
+          </h1>
+          <p className="text-white/50 text-sm mt-1">{longDate}</p>
+
+          {/* Hızlı istatistikler */}
+          <div className="flex gap-3 mt-5">
+            <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+              <div className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">Yurtiçi Kalan</div>
+              <div className={`text-2xl font-black ${yiKalan>0?"text-red-400":"text-emerald-400"}`}>{yiKalan}</div>
+            </div>
+            <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+              <div className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">İhracat</div>
+              <div className="text-2xl font-black text-amber-400">{ihRows.length}</div>
+            </div>
+            <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-2xl p-3 border border-white/10">
+              <div className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-1">Mal Kabul</div>
+              <div className="text-2xl font-black text-sky-400">{mkRows.length}</div>
+            </div>
           </div>
         </div>
-        <button onClick={shareWA}
-          className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors">
-          📤 Gönder
-        </button>
       </header>
 
-      {/* TABS */}
-      <div className="flex bg-white border-b-2 border-[#C8962E] sticky top-14 z-40">
-        {TABS.map(([k,l])=>(
-          <button key={k} onClick={()=>setTab(k)}
-            className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-              tab===k?"bg-[#C8962E] text-white":"text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
-            {l}
-          </button>
-        ))}
+      {/* ── TABS ── */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div className="flex max-w-xl mx-auto">
+          {([["yurtici","🚚","Yurtiçi"],["ihracat","✈️","İhracat"],["malkabul","📦","Mal Kabul"]] as const).map(([k,ic,lb])=>(
+            <button key={k} onClick={()=>setTab(k as TabKey)}
+              className={`flex-1 py-3.5 text-xs font-bold uppercase tracking-wide transition-all flex flex-col items-center gap-0.5
+                ${tab===k
+                  ? "text-[#1B2A4A] border-b-2 border-[#C8962E]"
+                  : "text-slate-400 border-b-2 border-transparent hover:text-slate-600"}`}>
+              <span className="text-lg">{ic}</span>
+              {lb}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="max-w-xl mx-auto p-4 pb-10">
+      <div className="max-w-xl mx-auto px-4 pt-5">
 
         {/* ── ZEUS UPLOAD ── */}
-        <Card>
-          <CardTitle c="📊 Zeus'tan Excel Yükleme" />
+        <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-5 mb-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-[#1B2A4A] flex items-center justify-center">
+              <span className="text-sm">⚡</span>
+            </div>
+            <div>
+              <div className="text-sm font-bold text-slate-800">Zeus WMS Entegrasyonu</div>
+              <div className="text-xs text-slate-400">Rapor Al → Excel Kaydet → Buraya Yükle</div>
+            </div>
+          </div>
           <div className="flex gap-3">
-            <UploadZone label="İş Talepleri" icon="📋" st={stIt} msg={msgIt} onClick={()=>refIt.current?.click()} />
-            <UploadZone label="İrsaliye" icon="📦" st={stIr} msg={msgIr} onClick={()=>refIr.current?.click()} />
+            <UpZone label="İş Talepleri" icon="📋"
+              bg="border-[#1B2A4A]/20 bg-[#1B2A4A]/5 hover:bg-[#1B2A4A]/10"
+              st={stIt} msg={msgIt} onClick={()=>refIt.current?.click()} />
+            <UpZone label="İrsaliye" icon="📦"
+              bg="border-[#C8962E]/30 bg-[#C8962E]/5 hover:bg-[#C8962E]/10"
+              st={stIr} msg={msgIr} onClick={()=>refIr.current?.click()} />
           </div>
           <input ref={refIt} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e=>{const f=e.target.files?.[0]; if(f) parseIsTalepleri(f); e.target.value="";}} />
           <input ref={refIr} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={e=>{const f=e.target.files?.[0]; if(f) parseIrsaliye(f);   e.target.value="";}} />
           {(stIt==="ok"||stIr==="ok") && (
-            <button onClick={()=>{setStIt("idle");setMsgIt("");setStIr("idle");setMsgIr("");
-              setYiRows([]);setIhRows([]);setMkRows([]);setYiSiparis("");setYiFatura("");}}
-              className="mt-3 text-xs text-slate-400 hover:text-red-400 w-full text-center">
-              Temizle ve sıfırla
+            <button onClick={resetAll}
+              className="mt-3 w-full text-xs text-slate-400 hover:text-red-500 transition-colors py-1">
+              ↺ Temizle ve sıfırla
             </button>
           )}
-          {stIt==="idle"&&stIr==="idle" && (
-            <p className="text-xs text-slate-400 mt-3 text-center">
-              Zeus → Rapor Al → Excel kaydet → Buraya yükle
-            </p>
-          )}
-        </Card>
+        </div>
 
         {/* ══ YURTİÇİ ══ */}
         {tab==="yurtici" && <>
-          <div className="flex gap-3 mb-4">
-            {[{l:"Sipariş Sayısı",v:yiSiparis,sv:setYiSiparis},{l:"Faturalanan",v:yiFatura,sv:setYiFatura}].map(f=>(
-              <div key={f.l} className="flex-1 bg-white rounded-xl border border-slate-100 shadow-sm p-3">
-                <Lbl c={f.l} />
-                <input type="number" inputMode="numeric" placeholder="0" value={f.v}
-                  onChange={e=>f.sv(e.target.value)}
-                  className="text-2xl font-bold text-slate-700 w-full border-none outline-none bg-transparent" />
-              </div>
-            ))}
-            <div className={`flex-1 rounded-xl border-l-4 shadow-sm p-3 ${yiKalan>0?"bg-red-50 border-l-red-500 border border-red-100":"bg-green-50 border-l-green-500 border border-green-100"}`}>
+          <div className="flex gap-3 mb-5">
+            <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+              <Lbl c="Sipariş Sayısı" />
+              <input type="number" inputMode="numeric" placeholder="0" value={yiSiparis}
+                onChange={e=>setYiSiparis(e.target.value)}
+                className="text-3xl font-black text-slate-800 w-full border-none outline-none bg-transparent tabular-nums" />
+            </div>
+            <div className="flex-1 bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+              <Lbl c="Faturalanan" />
+              <input type="number" inputMode="numeric" placeholder="0" value={yiFatura}
+                onChange={e=>setYiFatura(e.target.value)}
+                className="text-3xl font-black text-slate-800 w-full border-none outline-none bg-transparent tabular-nums" />
+            </div>
+            <div className={`flex-1 rounded-2xl border-l-4 p-4 ${
+              yiKalan>0 ? "bg-red-50 border-l-red-500 border border-red-100"
+                        : "bg-emerald-50 border-l-emerald-500 border border-emerald-100"}`}>
               <Lbl c="Kalan" />
-              <div className={`text-2xl font-bold ${yiKalan>0?"text-red-600":"text-green-600"}`}>{yiKalan}</div>
+              <div className={`text-3xl font-black tabular-nums ${yiKalan>0?"text-red-600":"text-emerald-600"}`}>
+                {yiKalan}
+              </div>
             </div>
           </div>
 
-          <Card>
-            <CardTitle c="+ Bekleyen Müşteri Ekle" />
-            <div className="space-y-2 mb-3">
+          {/* Bekleyen form */}
+          <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-5 mb-5">
+            <div className="text-xs font-bold text-[#C8962E] uppercase tracking-widest mb-4">+ Bekleyen Müşteri</div>
+            <div className="space-y-2.5 mb-4">
               <Inp ph="Müşteri Adı *" val={yiF.musteri} set={v=>setYiF({...yiF,musteri:v})} />
               <Sel val={yiF.sebep} set={v=>setYiF({...yiF,sebep:v})}
                 opts={["TIR İLE SEVK EDİLECEK","CUT OF SONRASI DÜŞEN SİPARİŞ","ELLEÇLEME","KULVARDA","DİĞER"]} />
-              <div className="grid grid-cols-2 gap-2">
-                <Inp ph="SKU" tp="number" val={yiF.sku} set={v=>setYiF({...yiF,sku:v})} />
+              <div className="grid grid-cols-2 gap-2.5">
+                <Inp ph="SKU (Çeşit)" tp="number" val={yiF.sku} set={v=>setYiF({...yiF,sku:v})} />
                 <Inp ph="Adet" tp="number" val={yiF.adet} set={v=>setYiF({...yiF,adet:v})} />
               </div>
               <Inp ph="Not (isteğe bağlı)" val={yiF.not} set={v=>setYiF({...yiF,not:v})} />
             </div>
-            <AddBtn onClick={addYi} />
-          </Card>
+            <PrimaryBtn onClick={addYi}>Ekle</PrimaryBtn>
+          </div>
 
           {yiRows.length===0
-            ? <Empty t="Bekleyen müşteri yok — tüm siparişler faturalandı ✅" />
+            ? <div className="text-center text-slate-400 py-12">
+                <div className="text-4xl mb-3">✅</div>
+                <div className="font-semibold text-sm">Bekleyen müşteri yok</div>
+                <div className="text-xs mt-1 opacity-70">Tüm siparişler faturalandı</div>
+              </div>
             : yiRows.map(r=>(
-              <div key={r.id} className="bg-white rounded-xl border border-slate-100 border-l-4 border-l-red-500 shadow-sm p-3 mb-3 flex justify-between items-start">
-                <div>
-                  <div className="font-semibold text-slate-800 mb-1">{r.musteri}</div>
-                  {r.sebep&&<span className={`text-xs rounded-full border px-2 py-0.5 ${SC.red}`}>{r.sebep}</span>}
-                  <div className="text-xs text-slate-500 mt-1.5">
-                    {r.sku&&`${r.sku} SKU`}{r.sku&&r.adet?" · ":""}{r.adet&&`${parseInt(r.adet).toLocaleString("tr-TR")} Adet`}
+              <RowCard key={r.id} borderCls="border-l-red-500">
+                <div className="flex-1">
+                  <div className="font-bold text-slate-800 mb-1.5">{r.musteri}</div>
+                  {r.sebep && <span className={`text-xs font-semibold rounded-full border px-2.5 py-1 ${SC.red}`}>{r.sebep}</span>}
+                  <div className="flex gap-3 mt-2 text-xs text-slate-500">
+                    {r.sku  && <span className="bg-slate-100 rounded-lg px-2 py-0.5">{r.sku} SKU</span>}
+                    {r.adet && <span className="bg-slate-100 rounded-lg px-2 py-0.5">{fmtNum(r.adet)} Adet</span>}
                   </div>
-                  {r.not&&<div className="text-xs text-slate-400 mt-0.5">{r.not}</div>}
+                  {r.not && <div className="text-xs text-slate-400 mt-1.5 italic">{r.not}</div>}
                 </div>
                 <DelBtn onClick={()=>setYiRows(rs=>rs.filter(x=>x.id!==r.id))} />
-              </div>
+              </RowCard>
             ))
           }
         </>}
@@ -424,119 +457,132 @@ export default function GunSonuPage() {
         {/* ══ İHRACAT ══ */}
         {tab==="ihracat" && <>
           {ihRows.length>0 && (
-            <div className="flex gap-3 mb-4">
-              <SumCard label="Kritik / Geç"  val={ihSts.filter(s=>s?.renk==="red").length}    color="border-l-red-500" />
-              <SumCard label="Süreci Devam"  val={ihSts.filter(s=>s?.renk==="yellow").length} color="border-l-amber-500" />
-              <SumCard label="Tamamlandı"    val={ihSts.filter(s=>s?.renk==="green").length}  color="border-l-green-500" />
+            <div className="flex gap-3 mb-5">
+              <StatCard label="Kritik/Geç"   val={ihSts.filter(s=>s?.renk==="red").length}    color="bg-red-50 border border-red-100 text-red-700" />
+              <StatCard label="Devam Ediyor" val={ihSts.filter(s=>s?.renk==="yellow").length} color="bg-amber-50 border border-amber-100 text-amber-700" />
+              <StatCard label="Tamamlandı"   val={ihSts.filter(s=>s?.renk==="green").length}  color="bg-emerald-50 border border-emerald-100 text-emerald-700" />
             </div>
           )}
 
-          {ihRows.length===0 ? <Empty t="İhracat siparişi yok — İş Talepleri yükleyin veya manuel ekleyin" />
+          {ihRows.length===0
+            ? <div className="text-center text-slate-400 py-12">
+                <div className="text-4xl mb-3">✈️</div>
+                <div className="font-semibold text-sm">İhracat siparişi yok</div>
+                <div className="text-xs mt-1 opacity-70">İş Talepleri yükleyin veya manuel ekleyin</div>
+              </div>
             : ihRows.map(r=>{
-              const st=calcStatus(r);
+              const s=calcStatus(r);
               return (
-                <div key={r.id} className={`bg-white rounded-xl border border-slate-100 border-l-4 ${st?SB[st.renk]:"border-l-slate-300"} shadow-sm p-3 mb-3 flex justify-between items-start`}>
+                <RowCard key={r.id} borderCls={s?SB[s.renk]:"border-l-slate-300"}>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-slate-800">{r.musteri}</span>
-                      {r.ulke&&<span className="text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">{r.ulke}</span>}
+                    <div className="flex items-center gap-2 mb-2">
+                      {s && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${RENK_DOT[s.renk]}`} />}
+                      <span className="font-bold text-slate-800">{r.musteri}</span>
+                      {r.ulke && (
+                        <span className="text-xs bg-slate-100 text-slate-500 font-semibold rounded-md px-1.5 py-0.5 uppercase">
+                          {r.ulke}
+                        </span>
+                      )}
                     </div>
-                    {st&&<span className={`text-xs rounded-full border px-2 py-0.5 ${SC[st.renk]}`}>{st.durum}</span>}
-                    <div className="text-xs text-slate-500 mt-1.5">
-                      {r.sku} SKU · {r.adet&&parseInt(r.adet).toLocaleString("tr-TR")+" Adet"}
-                      {st&&` · Son: ${st.sonTermin}`}
+                    {s && <span className={`text-xs font-semibold rounded-full border px-2.5 py-1 ${SC[s.renk]}`}>{s.durum}</span>}
+                    <div className="flex gap-2 mt-2 text-xs text-slate-500">
+                      {r.sku  && <span className="bg-slate-100 rounded-lg px-2 py-0.5">{r.sku} SKU</span>}
+                      {r.adet && <span className="bg-slate-100 rounded-lg px-2 py-0.5">{fmtNum(r.adet)} Adet</span>}
+                      {s      && <span className="bg-slate-100 rounded-lg px-2 py-0.5">Son: {s.sonTermin}</span>}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
+                    <div className="text-xs text-slate-400 mt-1.5">
                       {fmtDate(r.ilkTarih)}{r.cikisTarih?` → ${fmtDate(r.cikisTarih)}`:""}{r.sebep?` · ${r.sebep}`:""}
                     </div>
-                    {/* Hızlı gönderildi işaretleme */}
                     {!r.cikisTarih && (
                       <button onClick={()=>setIhRows(rs=>rs.map(x=>x.id===r.id?{...x,sebep:"GÖNDERİLDİ",cikisTarih:todayStr()}:x))}
-                        className="mt-1.5 text-xs text-green-600 hover:text-green-700 font-medium">
+                        className="mt-2 text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
                         ✓ Gönderildi olarak işaretle
                       </button>
                     )}
                   </div>
                   <DelBtn onClick={()=>setIhRows(rs=>rs.filter(x=>x.id!==r.id))} />
-                </div>
+                </RowCard>
               );
             })
           }
 
-          <Card>
-            <CardTitle c="+ Manuel Sipariş Ekle" />
-            <div className="space-y-2 mb-3">
+          <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-5 mb-5">
+            <div className="text-xs font-bold text-[#C8962E] uppercase tracking-widest mb-4">+ Manuel Sipariş Ekle</div>
+            <div className="space-y-2.5 mb-4">
               <Inp ph="Müşteri / Alıcı Adı *" val={ihF.musteri} set={v=>setIhF({...ihF,musteri:v})} />
               <Inp ph="Ülke / Şehir" val={ihF.ulke} set={v=>setIhF({...ihF,ulke:v})} />
-              <div className="grid grid-cols-2 gap-2">
-                <div><Lbl c="İlk Sipariş Tarihi"/><Inp tp="date" val={ihF.ilkTarih} set={v=>setIhF({...ihF,ilkTarih:v})} /></div>
-                <div><Lbl c="Çıkış Tarihi"/><Inp tp="date" val={ihF.cikisTarih} set={v=>setIhF({...ihF,cikisTarih:v})} /></div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div><Lbl c="İlk Sipariş Tarihi" /><Inp tp="date" val={ihF.ilkTarih} set={v=>setIhF({...ihF,ilkTarih:v})} /></div>
+                <div><Lbl c="Çıkış Tarihi" /><Inp tp="date" val={ihF.cikisTarih} set={v=>setIhF({...ihF,cikisTarih:v})} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <Sel val={ihF.sebep} set={v=>setIhF({...ihF,sebep:v})}
                   opts={["GÖNDERİLDİ","TOPLAMADA","ELLEÇLEME","BEKLEMEDE","DİĞER"]} />
                 <Inp ph="SKU (Çeşit)" tp="number" val={ihF.sku} set={v=>setIhF({...ihF,sku:v})} />
               </div>
               <Inp ph="Adet" tp="number" val={ihF.adet} set={v=>setIhF({...ihF,adet:v})} />
-              {liveS&&(
-                <div className={`rounded-lg border px-3 py-2 text-sm ${SC[liveS.renk]}`}>
-                  <div className="font-semibold">⚡ {liveS.durum}</div>
-                  <div className="text-xs mt-0.5 opacity-80">Termin: {liveS.terminGun} gün · Son: {liveS.sonTermin}</div>
+              {liveS && (
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${SC[liveS.renk]}`}>
+                  <div className="font-bold">⚡ {liveS.durum}</div>
+                  <div className="text-xs mt-0.5 opacity-70">Termin: {liveS.terminGun} gün · Son tarih: {liveS.sonTermin}</div>
                 </div>
               )}
             </div>
-            <AddBtn onClick={addIh} />
-          </Card>
+            <PrimaryBtn onClick={addIh}>Ekle</PrimaryBtn>
+          </div>
         </>}
 
         {/* ══ MAL KABUL ══ */}
         {tab==="malkabul" && <>
-          {mkRows.length>0&&(
-            <div className="flex gap-3 mb-4">
-              <SumCard label="Başlamadı/İşlemde" val={mkRows.filter(r=>r.durum!=="TAMAMLANDI").length} color="border-l-amber-500" />
-              <SumCard label="Tamamlandı"         val={mkRows.filter(r=>r.durum==="TAMAMLANDI").length} color="border-l-green-500" />
-              <SumCard label="Toplam Adet"         val={mkTot.toLocaleString("tr-TR")}                  color="border-l-[#C8962E]" />
+          {mkRows.length>0 && (
+            <div className="flex gap-3 mb-5">
+              <StatCard label="Bekliyor"    val={mkRows.filter(r=>r.durum!=="TAMAMLANDI").length} color="bg-amber-50 border border-amber-100 text-amber-700" />
+              <StatCard label="Tamamlandı"  val={mkRows.filter(r=>r.durum==="TAMAMLANDI").length}  color="bg-emerald-50 border border-emerald-100 text-emerald-700" />
+              <StatCard label="Toplam Adet" val={fmtNum(mkTot)}                                    color="bg-sky-50 border border-sky-100 text-sky-700" />
             </div>
           )}
 
-          {mkRows.length===0 ? <Empty t="Mal kabul kaydı yok — İrsaliye yükleyin" />
+          {mkRows.length===0
+            ? <div className="text-center text-slate-400 py-12">
+                <div className="text-4xl mb-3">📦</div>
+                <div className="font-semibold text-sm">Mal kabul kaydı yok</div>
+                <div className="text-xs mt-1 opacity-70">İrsaliye yükleyin veya manuel ekleyin</div>
+              </div>
             : mkRows.map(r=>{
-              const dc=r.durum==="TAMAMLANDI"?"border-l-green-500":r.durum==="İŞLEMDE"?"border-l-amber-500":"border-l-slate-400";
-              const pk=r.durum==="TAMAMLANDI"?SC.green:r.durum==="İŞLEMDE"?SC.yellow:SC.red;
+              const dc = r.durum==="TAMAMLANDI"?"border-l-emerald-500":r.durum==="İŞLEMDE"?"border-l-amber-500":"border-l-slate-400";
+              const pk = r.durum==="TAMAMLANDI"?SC.green:r.durum==="İŞLEMDE"?SC.yellow:SC.red;
               return (
-                <div key={r.id} className={`bg-white rounded-xl border border-slate-100 border-l-4 ${dc} shadow-sm p-3 mb-3 flex justify-between items-start`}>
-                  <div>
-                    <div className="font-semibold text-slate-800 mb-1">{r.firma}</div>
-                    <span className={`text-xs rounded-full border px-2 py-0.5 ${pk}`}>{r.durum}</span>
-                    <div className="text-xs text-slate-500 mt-1.5">
-                      {r.depo}{r.adet?` · ${parseInt(r.adet).toLocaleString("tr-TR")} Adet`:""}
-                      {r.cesit?` · ${r.cesit} çeşit`:""}
-                      {` · ${fmtDate(r.tarih)}`}
+                <RowCard key={r.id} borderCls={dc}>
+                  <div className="flex-1">
+                    <div className="font-bold text-slate-800 mb-1.5 leading-tight">{r.firma}</div>
+                    <span className={`text-xs font-semibold rounded-full border px-2.5 py-1 ${pk}`}>{r.durum}</span>
+                    <div className="flex flex-wrap gap-2 mt-2 text-xs text-slate-500">
+                      <span className="bg-slate-100 rounded-lg px-2 py-0.5">{r.depo}</span>
+                      {r.adet  && <span className="bg-slate-100 rounded-lg px-2 py-0.5">{fmtNum(r.adet)} Adet</span>}
+                      {r.cesit && <span className="bg-slate-100 rounded-lg px-2 py-0.5">{r.cesit} Çeşit</span>}
+                      <span className="bg-slate-100 rounded-lg px-2 py-0.5">{fmtDate(r.tarih)}</span>
                     </div>
-                    {(r.belgeNo||r.belgeNo2)&&(
-                      <div className="text-xs text-slate-400 mt-0.5 font-mono">
+                    {(r.belgeNo||r.belgeNo2) && (
+                      <div className="text-xs text-slate-400 mt-1.5 font-mono">
                         {r.belgeNo}{r.belgeNo2?` / ${r.belgeNo2}`:""}
                       </div>
                     )}
                   </div>
                   <DelBtn onClick={()=>setMkRows(rs=>rs.filter(x=>x.id!==r.id))} />
-                </div>
+                </RowCard>
               );
             })
           }
 
-          <Card>
-            <CardTitle c="+ Manuel Mal Kabul Ekle" />
-            <div className="space-y-2 mb-3">
+          <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-5 mb-5">
+            <div className="text-xs font-bold text-[#C8962E] uppercase tracking-widest mb-4">+ Manuel Mal Kabul</div>
+            <div className="space-y-2.5 mb-4">
               <Inp ph="Firma Adı *" val={mkF.firma} set={v=>setMkF({...mkF,firma:v})} />
-              <div className="grid grid-cols-2 gap-2">
-                <select value={mkF.depo} onChange={e=>setMkF({...mkF,depo:e.target.value})}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30">
-                  {["TEM.34","Kartepe","Çatalca","Ankara"].map(o=><option key={o}>{o}</option>)}
-                </select>
-                <div><Lbl c="Tarih"/><Inp tp="date" val={mkF.tarih} set={v=>setMkF({...mkF,tarih:v})} /></div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <Sel val={mkF.depo} set={v=>setMkF({...mkF,depo:v})} opts={["TEM.34","Kartepe","Çatalca","Ankara"]} ph="Depo seçin" />
+                <div><Lbl c="Tarih" /><Inp tp="date" val={mkF.tarih} set={v=>setMkF({...mkF,tarih:v})} /></div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <Inp ph="Belge No" val={mkF.belgeNo} set={v=>setMkF({...mkF,belgeNo:v})} />
                 <Inp ph="Belge No 2" val={mkF.belgeNo2} set={v=>setMkF({...mkF,belgeNo2:v})} />
                 <Inp ph="Adet" tp="number" val={mkF.adet} set={v=>setMkF({...mkF,adet:v})} />
@@ -545,11 +591,23 @@ export default function GunSonuPage() {
               <Sel val={mkF.durum} set={v=>setMkF({...mkF,durum:v})}
                 opts={["BAŞLAMADI","İŞLEMDE","TAMAMLANDI","ÜRÜN DEPOYA GELMEDİ"]} />
             </div>
-            <AddBtn onClick={addMk} />
-          </Card>
+            <PrimaryBtn onClick={addMk}>Ekle</PrimaryBtn>
+          </div>
         </>}
 
       </div>
+
+      {/* ── FLOATING GÖNDER ── */}
+      <div className="fixed bottom-6 left-0 right-0 px-6 z-50 max-w-xl mx-auto">
+        <button onClick={shareWA}
+          className="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-400
+            active:scale-[0.98] text-white font-black text-base py-4 rounded-2xl shadow-2xl
+            transition-all tracking-wide">
+          <span className="text-xl">📤</span>
+          WhatsApp&apos;a Gönder
+        </button>
+      </div>
+
     </div>
   );
 }
