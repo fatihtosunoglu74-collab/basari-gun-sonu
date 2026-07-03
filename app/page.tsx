@@ -126,9 +126,11 @@ export default function GunSonuPage() {
   const [mkF,setMkF]=useState<Omit<MKRow,"id">>({firma:"",depo:"TEM.34",belgeNo:"",belgeNo2:"",tarih:todayStr(),cari:"",adet:"",cesit:"",durum:"BAŞLAMADI"});
 
   type UpSt="idle"|"loading"|"ok"|"err";
-  const [stIt,setStIt]=useState<UpSt>("idle"); const [msgIt,setMsgIt]=useState("");
+  const [stYi,setStYi]=useState<UpSt>("idle"); const [msgYi,setMsgYi]=useState("");
+  const [stIh,setStIh]=useState<UpSt>("idle"); const [msgIh,setMsgIh]=useState("");
   const [stIr,setStIr]=useState<UpSt>("idle"); const [msgIr,setMsgIr]=useState("");
-  const refIt=useRef<HTMLInputElement>(null);
+  const refYi=useRef<HTMLInputElement>(null);
+  const refIh=useRef<HTMLInputElement>(null);
   const refIr=useRef<HTMLInputElement>(null);
 
   const yiKalan=(parseInt(yiSiparis)||0)-(parseInt(yiFatura)||0);
@@ -136,36 +138,63 @@ export default function GunSonuPage() {
   const ihSts=ihRows.map(r=>calcStatus(r));
   const mkTot=mkRows.reduce((t,r)=>t+(parseInt(r.adet)||0),0);
 
-  async function parseIt(file:File){
-    setStIt("loading");
+  async function parseYi(file:File){
+    setStYi("loading");
     try{
       const XLSX=await import("xlsx");
       const wb=XLSX.read(await file.arrayBuffer());
       const ws=wb.Sheets["data"]??wb.Sheets[wb.SheetNames[0]];
       const data:any[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-      const hi=data.findIndex(r=>r.some((c:any)=>sv(c)==="Müşteri"));
+      const hi=data.findIndex(r=>r.some((c:any)=>sv(c)==="Müşteri"||sv(c)==="SİPARİŞ SAYISI"));
       const hRow=hi>=0?data[hi]:data[0];
-      const iMus=hRow.findIndex((c:any)=>sv(c)==="Müşteri");
-      const iIl=hRow.findIndex((c:any)=>sv(c)==="İl");
-      const iTar=hRow.findIndex((c:any)=>sv(c).includes("Tarih"));
-      const iAdt=hRow.findIndex((c:any)=>sv(c)==="Adet");
-      const iCes=hRow.findIndex((c:any)=>sv(c)==="Çeşit");
-      let fatCount=0; const ihNew:IHRow[]=[];
+      const iMus=hRow.findIndex((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ AÇIKLAMA"));
+      const iAdt=hRow.findIndex((c:any)=>sv(c)==="Adet"||sv(c)==="ADET");
+      const iCes=hRow.findIndex((c:any)=>sv(c)==="Çeşit"||sv(c)==="SKU");
+      const iSip=hRow.findIndex((c:any)=>sv(c).includes("SİPARİŞ SAYISI"));
+      const iFat=hRow.findIndex((c:any)=>sv(c).includes("FATURA EDİLEN"));
+      let fatCount=0, sipCount=0;
       for(let i=(hi>=0?hi+1:1);i<data.length;i++){
         const r=data[i];
         const mus=sv(iMus>=0?r[iMus]:r[3]); if(!mus)continue;
-        const il=sv(iIl>=0?r[iIl]:r[4]).toUpperCase();
+        if(iSip>=0&&r[iSip])sipCount+=(parseInt(sv(r[iSip]))||0);
+        if(iFat>=0&&r[iFat])fatCount+=(parseInt(sv(r[iFat]))||0);
+        else fatCount++;
+      }
+      if(sipCount>0)setYiSiparis(String(sipCount));
+      setYiFatura(String(fatCount));
+      setMsgYi(`${fatCount} fatura`);
+      setStYi("ok"); setTab("yurtici");
+    }catch(e){setMsgYi("Dosya okunamadı"); setStYi("err");}
+  }
+
+  async function parseIh(file:File){
+    setStIh("loading");
+    try{
+      const XLSX=await import("xlsx");
+      const wb=XLSX.read(await file.arrayBuffer());
+      const ws=wb.Sheets["data"]??wb.Sheets[wb.SheetNames[0]];
+      const data:any[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      const hi=data.findIndex(r=>r.some((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ")));
+      const hRow=hi>=0?data[hi]:data[0];
+      const iMus=hRow.findIndex((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ"));
+      const iIl=hRow.findIndex((c:any)=>sv(c)==="İl"||sv(c)==="ÜLKE");
+      const iTar=hRow.findIndex((c:any)=>sv(c).includes("Tarih")||sv(c).includes("TARİH"));
+      const iAdt=hRow.findIndex((c:any)=>sv(c)==="Adet"||sv(c)==="ADET");
+      const iCes=hRow.findIndex((c:any)=>sv(c)==="Çeşit"||sv(c)==="SKU");
+      const ihNew:IHRow[]=[];
+      for(let i=(hi>=0?hi+1:1);i<data.length;i++){
+        const r=data[i];
+        const mus=sv(iMus>=0?r[iMus]:r[3]); if(!mus)continue;
+        const ulke=sv(iIl>=0?r[iIl]:r[4]);
         const tar=parseTrDate(sv(iTar>=0?r[iTar]:r[2]));
         const adt=ns(iAdt>=0?r[iAdt]:r[6]);
         const ces=ns(iCes>=0?r[iCes]:r[7]);
-        if(TR_ILLER.has(il)){fatCount++;}
-        else if(il){ihNew.push({id:uid(),musteri:mus,ulke:il,ilkTarih:tar,cikisTarih:"",sebep:"",sku:ces,adet:adt});}
+        ihNew.push({id:uid(),musteri:mus,ulke,ilkTarih:tar,cikisTarih:"",sebep:"",sku:ces,adet:adt});
       }
-      setYiFatura(String(fatCount));
       setIhRows(r=>[...r,...ihNew]);
-      setMsgIt(`${fatCount} Yurtiçi · ${ihNew.length} İhracat`);
-      setStIt("ok"); setTab("yurtici");
-    }catch(e){setMsgIt("Dosya okunamadı"); setStIt("err");}
+      setMsgIh(`${ihNew.length} sipariş`);
+      setStIh("ok"); setTab("ihracat");
+    }catch(e){setMsgIh("Dosya okunamadı"); setStIh("err");}
   }
 
   async function parseIr(file:File){
@@ -276,14 +305,15 @@ export default function GunSonuPage() {
             <CloudUpload size={18} className="text-[#C8962E]"/>
             <span className="text-xs font-bold text-slate-700 tracking-widest uppercase">Zeus&apos;tan Excel Yükleme</span>
           </div>
-          <div className="flex gap-4">
-            <UpZone icon={ClipboardList} label="İş Talepleri" st={stIt} msg={msgIt} onClick={()=>refIt.current?.click()}/>
+          <div className="grid grid-cols-3 gap-3">
+            <UpZone icon={ClipboardList} label="Yurtiçi" st={stYi} msg={msgYi} onClick={()=>refYi.current?.click()}/>
+            <UpZone icon={Globe} label="İhracat" st={stIh} msg={msgIh} onClick={()=>refIh.current?.click()}/>
             <UpZone icon={Package} label="İrsaliye" st={stIr} msg={msgIr} onClick={()=>refIr.current?.click()}/>
           </div>
           <div className="flex items-center gap-1.5 mt-4 text-xs text-slate-400">
             <Info size={12}/>Zeus → Rapor Al → Excel kaydet → Buraya yükle
           </div>
-          {(stIt==="ok"||stIr==="ok")&&(
+          {(stYi==="ok"||stIh==="ok"||stIr==="ok")&&(
             <button onClick={()=>{setStIt("idle");setMsgIt("");setStIr("idle");setMsgIr("");setYiRows([]);setIhRows([]);setMkRows([]);setYiSiparis("");setYiFatura("");}}
               className="mt-2 text-xs text-slate-400 hover:text-red-400 transition-colors">↺ Sıfırla</button>
           )}
@@ -630,8 +660,10 @@ export default function GunSonuPage() {
         </div>
       </main>
 
-      <input ref={refIt} type="file" accept=".xlsx,.xls" className="hidden"
-        onChange={e=>{const f=e.target.files?.[0]; if(f)parseIt(f); e.target.value="";}}/>
+      <input ref={refYi} type="file" accept=".xlsx,.xls" className="hidden"
+        onChange={e=>{const f=e.target.files?.[0]; if(f)parseYi(f); e.target.value="";}}/>
+      <input ref={refIh} type="file" accept=".xlsx,.xls" className="hidden"
+        onChange={e=>{const f=e.target.files?.[0]; if(f)parseIh(f); e.target.value="";}}/>
       <input ref={refIr} type="file" accept=".xlsx,.xls" className="hidden"
         onChange={e=>{const f=e.target.files?.[0]; if(f)parseIr(f); e.target.value="";}}/>
     </div>
