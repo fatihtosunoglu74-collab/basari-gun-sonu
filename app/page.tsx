@@ -30,22 +30,22 @@ const C={navy:"#0B2F78",navyDk:"#082A5B",pageBg:"#F8FAFD",white:"#FFFFFF",border
 
 function Tag({l,bg,c}:{l:string;bg:string;c:string}){return<span style={{borderRadius:6,padding:"2px 9px",fontSize:12,fontWeight:700,display:"inline-block",background:bg,color:c,marginRight:5,marginBottom:4}}>{l}</span>;}
 
-// Kompakt upload şeridi
+// Kompakt upload şeridi — minimal
 function UpStrip({icon,name,st,msg,onPick}:{icon:string;name:string;st:US;msg:string;onPick:()=>void}){
   const ok=st==="ok",err=st==="err",ld=st==="loading";
   return(
-    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:16,padding:"14px 20px",border:`1.5px dashed ${ok?"#86efac":err?"#fca5a5":ld?"#e2e8f0":C.border}`,borderRadius:12,background:ok?"#f0fdf4":err?"#fef2f2":"#F8FAFD",cursor:"pointer",transition:"all 0.18s"}}>
-      <span style={{fontSize:28,flexShrink:0}}>{ok?"✅":err?"❌":ld?"⏳":icon}</span>
-      <div style={{flex:1}}>
-        <div style={{fontWeight:800,fontSize:15,color:C.text}}>{ok||err?msg:name}</div>
-        {!ok&&!err&&<div style={{fontSize:12,color:C.sub,marginTop:2}}>.xlsx / .xls</div>}
+    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:`1.5px dashed ${ok?"#86efac":err?"#fca5a5":ld?"#e2e8f0":C.border}`,borderRadius:10,background:ok?"#f0fdf4":err?"#fef2f2":"#F8FAFD",cursor:"pointer",transition:"all 0.18s"}}>
+      <span style={{fontSize:22,flexShrink:0}}>{ok?"✅":err?"❌":ld?"⏳":icon}</span>
+      <div style={{flex:1,minWidth:0}}>
+        <span style={{fontWeight:700,fontSize:14,color:C.text}}>{ok||err?msg:name}</span>
+        {!ok&&!err&&<span style={{fontSize:12,color:C.sub,marginLeft:8}}>.xlsx / .xls</span>}
       </div>
       {!ok&&!err&&!ld&&(
-        <button onClick={e=>{e.stopPropagation();onPick();}} style={{height:34,padding:"0 16px",border:`1px solid ${C.border}`,borderRadius:8,background:C.white,color:C.navy,fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0,whiteSpace:"nowrap"}}>
+        <button onClick={e=>{e.stopPropagation();onPick();}} style={{height:30,padding:"0 14px",border:`1px solid ${C.border}`,borderRadius:7,background:C.white,color:C.navy,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0,whiteSpace:"nowrap"}}>
           ☁️ Dosya Seç
         </button>
       )}
-      {ok&&<span style={{color:C.greenDk,fontWeight:800,fontSize:13,flexShrink:0}}>✓ Yüklendi</span>}
+      {ok&&<span style={{color:C.greenDk,fontWeight:800,fontSize:12,flexShrink:0}}>✓ Yüklendi</span>}
     </div>
   );
 }
@@ -169,7 +169,7 @@ export default function App(){
     tabAct:{background:C.navyDk,color:C.white},
     tabTri:{position:"absolute",bottom:-9,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"9px solid transparent",borderRight:"9px solid transparent",borderTop:`9px solid ${C.navyDk}`},
     saveBtn:{height:68,width:"100%",border:"none",borderRadius:16,background:`linear-gradient(135deg,${C.green} 0%,${C.greenDk} 100%)`,color:C.white,fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 12px 24px rgba(22,163,74,0.22)",cursor:"pointer",fontFamily:"inherit"},
-    card:{maxWidth:820,margin:"0 auto 18px",background:C.white,border:`1px solid ${C.border}`,borderRadius:16,boxShadow:C.sh,padding:"20px 24px",boxSizing:"border-box"},
+    card:{maxWidth:820,margin:"0 auto 16px",background:C.white,border:`1px solid ${C.border}`,borderRadius:14,boxShadow:C.sh,padding:"14px 18px",boxSizing:"border-box"},
     cardTitle:{display:"flex",alignItems:"center",gap:8,fontSize:13,fontWeight:800,color:C.navy,letterSpacing:0.5,marginBottom:16,textTransform:"uppercase" as const},
     statsRow:{maxWidth:820,margin:"0 auto 18px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14},
     statCard:{background:C.white,border:`1px solid ${C.border}`,borderRadius:16,boxShadow:C.sh,padding:"18px 22px",display:"flex",alignItems:"center",gap:16},
@@ -287,7 +287,7 @@ export default function App(){
           <div style={S.card}>
             <div style={S.cardTitle}><span>☁️</span>{ui.title}</div>
             <UpStrip icon={ui.icon} name={ui.name} st={ui.st} msg={ui.msg} onPick={ui.onPick}/>
-            <div style={{marginTop:10,textAlign:"center",color:C.sub,fontSize:12,fontWeight:600}}>Zeus → Rapor Al → Excel kaydet → Buraya yükle</div>
+
           </div>
 
           {/* ─── YURTİÇİ ─── */}
