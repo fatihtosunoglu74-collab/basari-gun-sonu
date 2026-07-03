@@ -28,24 +28,37 @@ function calcStatus(row:Partial<IHRow>){const{ilkTarih,cikisTarih,sebep="",sku}=
 
 const C={navy:"#0B2F78",navyDk:"#082A5B",pageBg:"#F8FAFD",white:"#FFFFFF",border:"#E3EAF3",green:"#22C55E",greenDk:"#16A34A",text:"#102A43",sub:"#6B7C93",amber:"#D68A1F",sh:"0 10px 30px rgba(16,42,67,0.08)"};
 
-function Tag({l,bg,c}:{l:string;bg:string;c:string}){return<span style={{borderRadius:6,padding:"2px 9px",fontSize:12,fontWeight:700,display:"inline-block",background:bg,color:c,marginRight:5,marginBottom:4}}>{l}</span>;}
+function Tag({l,bg,c,big}:{l:string;bg:string;c:string;big?:boolean}){return<span style={{borderRadius:6,padding:big?"4px 12px":"2px 9px",fontSize:big?13:12,fontWeight:800,display:"inline-block",background:bg,color:c,marginRight:5,marginBottom:4}}>{l}</span>;}
 
-// Kompakt upload şeridi — minimal
+// Kompakt upload şeridi — yüklendi durumunda mini şerit
 function UpStrip({icon,name,st,msg,onPick}:{icon:string;name:string;st:US;msg:string;onPick:()=>void}){
   const ok=st==="ok",err=st==="err",ld=st==="loading";
+  if(ok) return(
+    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,cursor:"pointer"}}>
+      <span style={{fontSize:16}}>✅</span>
+      <span style={{fontWeight:700,fontSize:13,color:C.greenDk,flex:1}}>{msg} yüklendi</span>
+      <span style={{fontSize:12,color:C.sub,fontWeight:600}}>Değiştir →</span>
+    </div>
+  );
+  if(err) return(
+    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:8,cursor:"pointer"}}>
+      <span style={{fontSize:16}}>❌</span>
+      <span style={{fontWeight:700,fontSize:13,color:"#dc2626",flex:1}}>{msg}</span>
+      <span style={{fontSize:12,color:C.sub,fontWeight:600}}>Tekrar dene →</span>
+    </div>
+  );
   return(
-    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:`1.5px dashed ${ok?"#86efac":err?"#fca5a5":ld?"#e2e8f0":C.border}`,borderRadius:10,background:ok?"#f0fdf4":err?"#fef2f2":"#F8FAFD",cursor:"pointer",transition:"all 0.18s"}}>
-      <span style={{fontSize:22,flexShrink:0}}>{ok?"✅":err?"❌":ld?"⏳":icon}</span>
+    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",border:`1.5px dashed ${ld?"#e2e8f0":C.border}`,borderRadius:10,background:"#F8FAFD",cursor:"pointer",transition:"all 0.18s"}}>
+      <span style={{fontSize:22,flexShrink:0}}>{ld?"⏳":icon}</span>
       <div style={{flex:1,minWidth:0}}>
-        <span style={{fontWeight:700,fontSize:14,color:C.text}}>{ok||err?msg:name}</span>
-        {!ok&&!err&&<span style={{fontSize:12,color:C.sub,marginLeft:8}}>.xlsx / .xls</span>}
+        <span style={{fontWeight:700,fontSize:14,color:C.text}}>{name}</span>
+        <span style={{fontSize:12,color:C.sub,marginLeft:8}}>.xlsx / .xls</span>
       </div>
-      {!ok&&!err&&!ld&&(
+      {!ld&&(
         <button onClick={e=>{e.stopPropagation();onPick();}} style={{height:30,padding:"0 14px",border:`1px solid ${C.border}`,borderRadius:7,background:C.white,color:C.navy,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0,whiteSpace:"nowrap"}}>
           ☁️ Dosya Seç
         </button>
       )}
-      {ok&&<span style={{color:C.greenDk,fontWeight:800,fontSize:12,flexShrink:0}}>✓ Yüklendi</span>}
     </div>
   );
 }
@@ -365,7 +378,7 @@ export default function App(){
                       {r.ulke&&<Tag l={r.ulke} bg="#F1F5F9" c="#475569"/>}
                     </div>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
-                      {s&&<Tag l={s.d} bg={s.c+"18"} c={s.c}/>}
+                      {s&&<Tag l={s.d} bg={s.c+"18"} c={s.c} big={true}/>}
                       {r.sku&&<Tag l={`${r.sku} SKU`} bg="#EAF3FF" c={C.navy}/>}
                       {r.adet&&<Tag l={`${fmtN(r.adet)} Adet`} bg="#EAF3FF" c={C.navy}/>}
                       {r.ilkTarih&&<Tag l={`Sipariş: ${fmtDate(r.ilkTarih)}`} bg="#F8FAFD" c={C.sub}/>}
