@@ -191,19 +191,12 @@ export default function App() {
       borderRadius:R.card, boxShadow:C.shadowMd,
       padding:"24px 28px 20px", boxSizing:"border-box",
     },
-    formTitle:{
-      color:C.amber, fontSize:16, fontWeight:800,
-      marginBottom:18, display:"flex", alignItems:"center", gap:8,
-    },
     field:{
       height:52, border:`1px solid ${C.border}`,
       borderRadius:R.inp, background:C.white,
       display:"flex", alignItems:"center",
       padding:"0 16px", gap:12, boxSizing:"border-box", marginBottom:10,
     },
-    fLabel:{ color:C.navy, fontSize:12, fontWeight:800, lineHeight:1.1 },
-    fPlaceholder:{ color:"#A8B8CC", fontSize:14, fontWeight:500, marginTop:2 },
-    row2:{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 },
     addBtn:{
       height:52, width:"100%", border:"none",
       borderRadius:R.btn,
@@ -245,10 +238,6 @@ export default function App() {
       padding:"16px 22px", boxSizing:"border-box",
       display:"flex", alignItems:"flex-start",
       justifyContent:"space-between", gap:16,
-    },
-    tag:{
-      borderRadius:6, padding:"3px 12px",
-      fontSize:12, fontWeight:700, display:"inline-block",
     },
   };
 
@@ -362,66 +351,6 @@ export default function App() {
                   <div style={{...styles.statNum,color:C.greenDk}}>0</div>
                 </div>
               </div>
-            </div>
-
-            {/* Bekleyen Müşteri Formu */}
-            <div style={styles.formCard}>
-              <div style={styles.formTitle}>
-                <span style={{fontSize:18}}>＋</span>
-                BEKLEYEN MÜŞTERİ EKLE
-              </div>
-
-              {/* Müşteri */}
-              <div style={styles.field}>
-                <span style={{fontSize:20,color:C.sub}}>👤</span>
-                <div style={{flex:1}}>
-                  <div style={styles.fLabel}>Müşteri Adı *</div>
-                  <div style={styles.fPlaceholder}>Müşteri adını giriniz</div>
-                </div>
-              </div>
-
-              {/* Seçin */}
-              <div style={{...styles.field,justifyContent:"space-between"}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,flex:1}}>
-                  <span style={{fontSize:20,color:C.sub}}>📦</span>
-                  <div style={{flex:1}}>
-                    <div style={styles.fLabel}>Çıkmama Sebebi</div>
-                    <div style={styles.fPlaceholder}>Seçin</div>
-                  </div>
-                </div>
-                <span style={{color:C.sub,fontWeight:900,fontSize:16}}>⌄</span>
-              </div>
-
-              {/* SKU + Adet */}
-              <div style={styles.row2}>
-                <div style={styles.field}>
-                  <span style={{fontSize:20,color:C.sub}}>◇</span>
-                  <div style={{flex:1}}>
-                    <div style={styles.fLabel}>SKU</div>
-                    <div style={styles.fPlaceholder}>SKU giriniz</div>
-                  </div>
-                </div>
-                <div style={styles.field}>
-                  <span style={{fontSize:20,color:C.sub}}>▤</span>
-                  <div style={{flex:1}}>
-                    <div style={styles.fLabel}>Adet</div>
-                    <div style={styles.fPlaceholder}>Adet giriniz</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Not */}
-              <div style={styles.field}>
-                <span style={{fontSize:20,color:C.sub}}>▣</span>
-                <div style={{flex:1}}>
-                  <div style={styles.fLabel}>Not (isteğe bağlı)</div>
-                  <div style={styles.fPlaceholder}>Not giriniz (isteğe bağlı)</div>
-                </div>
-              </div>
-
-              <button style={styles.addBtn}>
-                <span style={{color:"#F2AD32",fontSize:22}}>⊕</span> Ekle
-              </button>
             </div>
 
             {/* Başarı Mesajı */}
