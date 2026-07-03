@@ -300,7 +300,7 @@ export default function GunSonuPage() {
     return(
       <div className="space-y-4">
         {/* Upload */}
-        <div className="bg-white/90 rounded-2xl border border-slate-200 p-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <CloudUpload size={18} className="text-[#C8962E]"/>
             <span className="text-xs font-bold text-slate-700 tracking-widest uppercase">Zeus&apos;tan Excel Yükleme</span>
@@ -322,7 +322,7 @@ export default function GunSonuPage() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           {/* Sipariş Sayısı */}
-          <div className="bg-white/90 rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
               <FileText size={22} className="text-blue-500"/>
             </div>
@@ -334,7 +334,7 @@ export default function GunSonuPage() {
             </div>
           </div>
           {/* Faturalanan */}
-          <div className="bg-white/90 rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
               <Receipt size={22} className="text-violet-500"/>
             </div>
@@ -346,7 +346,7 @@ export default function GunSonuPage() {
             </div>
           </div>
           {/* Kalan */}
-          <div className="bg-white/90 rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
             <div className="w-12 h-12 rounded-full border-2 border-emerald-500 flex items-center justify-center flex-shrink-0">
               <CheckCircle2 size={22} className={yiKalan>0?"text-red-500":"text-emerald-500"}/>
             </div>
@@ -358,7 +358,7 @@ export default function GunSonuPage() {
         </div>
 
         {/* Form */}
-        <div className="bg-white/90 rounded-2xl border border-slate-200 p-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-[#C8962E] font-bold text-lg leading-none">+</span>
             <span className="text-xs font-bold text-[#C8962E] tracking-widest uppercase">Bekleyen Müşteri Ekle</span>
@@ -392,14 +392,14 @@ export default function GunSonuPage() {
 
         {/* Listesi */}
         {yiRows.length===0?(
-          <div className="bg-white/90 rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
               <CheckCircle2 size={17} className="text-white"/>
             </div>
             <span className="text-sm font-medium text-slate-700">Bekleyen müşteri yok — tüm siparişler faturalandı</span>
           </div>
         ):yiRows.map(r=>(
-          <div key={r.id} className="bg-white/90 rounded-2xl border border-slate-200 border-l-4 border-l-red-400 p-4 flex items-start justify-between gap-3">
+          <div key={r.id} className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-red-400 p-4 flex items-start justify-between gap-3">
             <div className="flex-1">
               <div className="font-semibold text-slate-800 mb-1.5">{r.musteri}</div>
               {r.sebep&&<span className="text-xs font-semibold rounded-full border px-2.5 py-0.5 bg-red-50 text-red-700 border-red-200">{r.sebep}</span>}
@@ -440,7 +440,7 @@ export default function GunSonuPage() {
           </div>
         )}
         {ihRows.length===0?(
-          <div className="bg-white/90 rounded-2xl border border-slate-200 p-12 text-center">
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
             <div className="text-4xl mb-3">✈️</div>
             <div className="text-sm font-medium text-slate-500">İhracat siparişi yok — İş Talepleri yükleyin veya manuel ekleyin</div>
           </div>
@@ -468,7 +468,7 @@ export default function GunSonuPage() {
             </div>
           );
         })}
-        <div className="bg-white/90 rounded-2xl border border-slate-200 p-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-[#C8962E] font-bold text-lg leading-none">+</span>
             <span className="text-xs font-bold text-[#C8962E] tracking-widest uppercase">Manuel Sipariş Ekle</span>
@@ -514,7 +514,7 @@ export default function GunSonuPage() {
               {l:"Tamamlandı", v:mkRows.filter(r=>r.durum==="TAMAMLANDI").length,  bg:"bg-emerald-50",ico:"text-emerald-500"},
               {l:"Toplam Adet",v:fmtN(mkTot),                                      bg:"bg-sky-50",    ico:"text-sky-500"},
             ].map(s=>(
-              <div key={s.l} className="bg-white/90 rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
+              <div key={s.l} className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}>
                   <Package size={22} className={s.ico}/>
                 </div>
@@ -527,7 +527,7 @@ export default function GunSonuPage() {
           </div>
         )}
         {mkRows.length===0?(
-          <div className="bg-white/90 rounded-2xl border border-slate-200 p-12 text-center">
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
             <div className="text-4xl mb-3">📦</div>
             <div className="text-sm font-medium text-slate-500">Mal kabul kaydı yok — İrsaliye yükleyin</div>
           </div>
@@ -552,7 +552,7 @@ export default function GunSonuPage() {
             </div>
           );
         })}
-        <div className="bg-white/90 rounded-2xl border border-slate-200 p-5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-[#C8962E] font-bold text-lg leading-none">+</span>
             <span className="text-xs font-bold text-[#C8962E] tracking-widest uppercase">Manuel Mal Kabul Ekle</span>
@@ -590,9 +590,9 @@ export default function GunSonuPage() {
   ];
 
   return(
-    <div className="min-h-screen flex flex-col relative" style={{background:"#f1f4f8"}}>
+    <div className="min-h-screen flex flex-col relative" style={{background:"transparent"}}>
       {/* Arka plan */}
-      <div className="fixed inset-0 bg-cover bg-center pointer-events-none" style={{backgroundImage:"url('/hero-bg.jpg')",opacity:0.18,zIndex:0}}/>
+      <div className="fixed inset-0 bg-cover bg-center pointer-events-none" style={{backgroundImage:"url('/hero-bg.jpg')",opacity:0.45,zIndex:0}}/>
 
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-white border-b border-slate-200 flex items-center justify-between px-8 h-16">
