@@ -197,8 +197,10 @@ export default function App() {
   const [mkRows,setMkRows]=useState<MKRow[]>([]);
   const [mkF,setMkF]=useState({firma:"",depo:"TEM.34",belgeNo:"",belgeNo2:"",tarih:todayStr(),adet:"",cesit:"",durum:"BAŞLAMADI"});
   const [stYi,setStYi]=useState<US>("idle"); const [msgYi,setMsgYi]=useState("");
+  const [stIh,setStIh]=useState<US>("idle"); const [msgIh,setMsgIh]=useState("");
   const [stIr,setStIr]=useState<US>("idle"); const [msgIr,setMsgIr]=useState("");
   const refYi=useRef<HTMLInputElement>(null);
+  const refIh=useRef<HTMLInputElement>(null);
   const refIr=useRef<HTMLInputElement>(null);
 
   // Supabase state
@@ -287,9 +289,9 @@ export default function App() {
   }
 
   // Excel parse
-  async function parseExcel(file:File, mode:"yi"|"ir"){
-    const setS=mode==="yi"?setStYi:setStIr;
-    const setM=mode==="yi"?setMsgYi:setMsgIr;
+  async function parseExcel(file:File, mode:"yi"|"ih"|"ir"){
+    const setS=mode==="yi"?setStYi:mode==="ih"?setStIh:setStIr;
+    const setM=mode==="yi"?setMsgYi:mode==="ih"?setMsgIh:setMsgIr;
     setS("loading");
     try{
       const XLSX=await import("xlsx");
@@ -322,20 +324,32 @@ export default function App() {
         const tot=rows.reduce((s,r)=>s+(parseInt(r.adet)||0),0);
         setM(`${rows.length} belge · ${tot.toLocaleString("tr-TR")} adet`);
         setTab("malkabul");
-      } else {
+      } else if(mode==="yi"){
         const hi=data.findIndex(r=>r.some((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ")));
         const hRow=hi>=0?data[hi]:data[0];
         const iMus=hRow.findIndex((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ"));
-        const iAdt=hRow.findIndex((c:any)=>sv(c)==="Adet"||sv(c)==="ADET");
         let count=0;
         for(let i=(hi>=0?hi+1:1);i<data.length;i++){
-          const r=data[i];
-          const mus=sv(iMus>=0?r[iMus]:r[3]); if(!mus)continue;
-          count++;
+          const r=data[i]; const mus=sv(iMus>=0?r[iMus]:r[3]); if(!mus)continue; count++;
         }
-        setYiFatura(String(count));
-        setM(`${count} fatura`);
-        setTab("yurtici");
+        setYiFatura(String(count)); setM(`${count} fatura`); setTab("yurtici");
+      } else {
+        // İhracat
+        const hi=data.findIndex(r=>r.some((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ")));
+        const hRow=hi>=0?data[hi]:data[0];
+        const iMus=hRow.findIndex((c:any)=>sv(c)==="Müşteri"||sv(c).includes("MÜŞTERİ"));
+        const iIl=hRow.findIndex((c:any)=>sv(c)==="İl"||sv(c)==="ÜLKE");
+        const iTar=hRow.findIndex((c:any)=>sv(c).includes("Tarih")||sv(c).includes("TARİH"));
+        const iAdt=hRow.findIndex((c:any)=>sv(c)==="Adet"||sv(c)==="ADET");
+        const iCes=hRow.findIndex((c:any)=>sv(c)==="Çeşit"||sv(c)==="SKU");
+        const newRows:IHRow[]=[];
+        for(let i=(hi>=0?hi+1:1);i<data.length;i++){
+          const r=data[i]; const mus=sv(iMus>=0?r[iMus]:r[3]); if(!mus)continue;
+          newRows.push({id:uid(),musteri:mus,ulke:sv(iIl>=0?r[iIl]:r[4]),
+            ilkTarih:parseTrDate(sv(iTar>=0?r[iTar]:r[2])),cikisTarih:"",sebep:"",
+            sku:ns(iCes>=0?r[iCes]:r[7]),adet:ns(iAdt>=0?r[iAdt]:r[6])});
+        }
+        setIhRows(r=>[...r,...newRows]); setM(`${newRows.length} sipariş`); setTab("ihracat");
       }
       setS("ok");
     }catch(e){setM("Dosya okunamadı");setS("err");}
@@ -430,12 +444,11 @@ export default function App() {
           {/* ══ YURTİÇİ ══ */}
           {tab==="yurtici"&&<>
             <div style={D.uploadCard}>
-              <div style={D.secTitle}><span>☁️</span>ZEUS'TAN EXCEL YÜKLEME</div>
-              <div style={D.uploadGrid}>
-                <UpBox icon="📋" title="İş Talepleri" st={stYi} msg={msgYi} onPick={()=>refYi.current?.click()}/>
-                <UpBox icon="📦" title="İrsaliye" st={stIr} msg={msgIr} onPick={()=>refIr.current?.click()}/>
+              <div style={D.secTitle}><span>☁️</span>YURTİÇİ — ZEUS'TAN EXCEL YÜKLEME</div>
+              <div style={{...D.uploadGrid,gridTemplateColumns:"1fr"}}>
+                <UpBox icon="📋" title="Yurtiçi İş Talepleri" st={stYi} msg={msgYi} onPick={()=>refYi.current?.click()}/>
               </div>
-              <div style={D.helper}>ⓘ Zeus → Rapor Al → Excel kaydet → Buraya yükle</div>
+              <div style={D.helper}>ⓘ Zeus → Siparişler → İç Piyasa → Rapor Al → Excel kaydet</div>
             </div>
 
             <div style={D.statsRow}>
@@ -502,8 +515,15 @@ export default function App() {
 
           {/* ══ İHRACAT ══ */}
           {tab==="ihracat"&&<>
+            <div style={{...D.uploadCard,marginTop:28}}>
+              <div style={D.secTitle}><span>☁️</span>İHRACAT — ZEUS'TAN EXCEL YÜKLEME</div>
+              <div style={{...D.uploadGrid,gridTemplateColumns:"1fr"}}>
+                <UpBox icon="🌐" title="İhracat İş Talepleri" st={stIh} msg={msgIh} onPick={()=>refIh.current?.click()}/>
+              </div>
+              <div style={D.helper}>ⓘ Zeus → Siparişler → İhracat → Rapor Al → Excel kaydet</div>
+            </div>
             {ihRows.length===0?(
-              <div style={{...D.emptyBanner,marginTop:28}}>
+              <div style={D.emptyBanner}>
                 <span style={{fontSize:32}}>✈️</span>İhracat siparişi yok
               </div>
             ):ihRows.map(r=>{
@@ -564,8 +584,15 @@ export default function App() {
 
           {/* ══ MAL KABUL ══ */}
           {tab==="malkabul"&&<>
+            <div style={{...D.uploadCard,marginTop:28}}>
+              <div style={D.secTitle}><span>☁️</span>MAL KABUL — ZEUS'TAN EXCEL YÜKLEME</div>
+              <div style={{...D.uploadGrid,gridTemplateColumns:"1fr"}}>
+                <UpBox icon="📦" title="İrsaliye" st={stIr} msg={msgIr} onPick={()=>refIr.current?.click()}/>
+              </div>
+              <div style={D.helper}>ⓘ Zeus → Mal Kabul → İrsaliyeler → Rapor Al → Excel kaydet</div>
+            </div>
             {mkRows.length===0?(
-              <div style={{...D.emptyBanner,marginTop:28}}>
+              <div style={D.emptyBanner}>
                 <span style={{fontSize:32}}>📦</span>Mal kabul kaydı yok
               </div>
             ):mkRows.map(r=>{
@@ -616,6 +643,8 @@ export default function App() {
 
       <input ref={refYi} type="file" accept=".xlsx,.xls" style={{display:"none"}}
         onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f,"yi");e.target.value="";}}/>
+      <input ref={refIh} type="file" accept=".xlsx,.xls" style={{display:"none"}}
+        onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f,"ih");e.target.value="";}}/>
       <input ref={refIr} type="file" accept=".xlsx,.xls" style={{display:"none"}}
         onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f,"ir");e.target.value="";}}/>
     </div>
