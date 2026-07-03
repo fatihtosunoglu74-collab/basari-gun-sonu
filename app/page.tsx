@@ -392,7 +392,7 @@ export default function App(){
                 <span style={{fontSize:13,fontWeight:700,color:C.greenDk}}>✓ Tamamlanan: {mkRows.filter(r=>r.durum==="TAMAMLANDI").length}</span>
                 <span style={{fontSize:13,fontWeight:700,color:"#d97706"}}>⏳ İşlemde: {mkRows.filter(r=>r.durum==="İŞLEMDE").length}</span>
               </div>
-              {mkRows.map(r=>{const dc=r.durum==="TAMAMLANDI"?C.greenDk:r.durum==="İŞLEMDE"?"#d97706":"#dc2626";return(
+              {mkRows.map(r=>{const dc=r.durum==="TAMAMLANDI"?C.greenDk:r.durum==="İŞLEMDE"?"#CA8A04":"#dc2626";return(
                 <div key={r.id} style={{...S.dataCard,borderLeft:`3px solid ${dc}`}}>
                   <div style={{flex:1}}>
                     <div style={{fontWeight:800,fontSize:15,color:C.text,marginBottom:6}}>{r.firma}</div>
