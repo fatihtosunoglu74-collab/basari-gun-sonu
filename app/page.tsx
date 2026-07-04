@@ -19,22 +19,24 @@ function xlDT(v:any):string{
   if(typeof v==="number"&&v>1){const d=new Date(Math.round((v-25569)*86400*1000));return d.toLocaleDateString("tr-TR")+" "+d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"});}
   return sv(v)||new Date().toLocaleDateString("tr-TR");
 }
-function terminType(tarihStr:string,sku:number):{durum:string;type:string}{
+function terminType(tarihStr:string,sku:number):{durum:string;type:string;terminStr:string}{
   const m=tarihStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-  if(!m)return{durum:"RİSKLİ",type:"yellow"};
+  if(!m)return{durum:"RİSKLİ",type:"yellow",terminStr:"—"};
   const ilk=new Date(`${m[3]}-${m[2]}-${m[1]}`);
-  const gun=sku<=50?1:sku<=100?2:sku<=250?4:7;
+  // SKU bilinmiyorsa (0) en geniş termin: 7 gün
+  const gun=sku<=0?7:sku<=50?1:sku<=100?2:sku<=250?4:7;
   const son=new Date(ilk);son.setDate(ilk.getDate()+gun);
+  const terminStr=son.toLocaleDateString("tr-TR");
   const today=new Date();today.setHours(0,0,0,0);
   const kalan=Math.ceil((son.getTime()-today.getTime())/86400000);
-  if(kalan>1)return{durum:"ZAMANINDA",type:"green"};
-  if(kalan>=0)return{durum:"RİSKLİ",type:"yellow"};
-  return{durum:"GECİKTİ",type:"red"};
+  if(kalan>1)return{durum:"ZAMANINDA",type:"green",terminStr};
+  if(kalan>=0)return{durum:"RİSKLİ",type:"yellow",terminStr};
+  return{durum:"GECİKTİ",type:"red",terminStr};
 }
 
 // ─── Tipler & Demo Veri ───────────────────────────────────────────────────────
 interface YIRow{no:string;musteri:string;depo:string;tip:string;tarih:string;}
-interface IHRow{no:string;firma:string;ulke:string;termin:string;adet:number;durum:string;type:string;}
+interface IHRow{no:string;firma:string;ulke:string;siparisTarihi:string;termin:string;adet:number;durum:string;type:string;}
 interface MKRow{no:string;tedarikci:string;tarih:string;durum:string;type:string;aciklama:string;}
 type Tab="yurtici"|"ihracat"|"malKabul";
 type US="idle"|"loading"|"ok"|"err";
@@ -45,9 +47,9 @@ const DEF_YI:YIRow[]=[
   {no:"B4B-234559",musteri:"Aluçlar Otomotiv",        depo:"TEM.34",tip:"SEVKİYAT ARACI",tarih:"03.07.2026"},
 ];
 const DEF_IH:IHRow[]=[
-  {no:"IH-2026-101",firma:"Auto Balkan",  ulke:"Bulgaristan",termin:"04.07.2026 17:00",adet:420,durum:"ZAMANINDA",type:"green"},
-  {no:"IH-2026-102",firma:"Global Parts", ulke:"Almanya",    termin:"04.07.2026 18:30",adet:275,durum:"RİSKLİ",  type:"yellow"},
-  {no:"IH-2026-103",firma:"MENA Trade",   ulke:"BAE",        termin:"04.07.2026 16:00",adet:610,durum:"GECİKTİ", type:"red"},
+  {no:"IH-2026-101",firma:"Auto Balkan",  ulke:"Bulgaristan",siparisTarihi:"03.07.2026",termin:"10.07.2026",adet:420,durum:"ZAMANINDA",type:"green"},
+  {no:"IH-2026-102",firma:"Global Parts", ulke:"Almanya",    siparisTarihi:"02.07.2026",termin:"04.07.2026",adet:275,durum:"RİSKLİ",  type:"yellow"},
+  {no:"IH-2026-103",firma:"MENA Trade",   ulke:"BAE",        siparisTarihi:"25.06.2026",termin:"02.07.2026",adet:610,durum:"GECİKTİ", type:"red"},
 ];
 const DEF_MK:MKRow[]=[
   {no:"IRS-2026-1452",tedarikci:"Martaş Otomotiv",   tarih:"04.07.2026 08:30",durum:"BAŞLAMADI", type:"red",   aciklama:"İşleme alınmadı"},
@@ -82,6 +84,22 @@ function SummaryCard({type,title,val,sub}:{type:string;title:string;val:number;s
         <div style={{fontSize:14,fontWeight:900,color:cl,letterSpacing:0.6,marginBottom:4}}>{title}</div>
         <div style={{fontSize:40,fontWeight:900,color:C.text,lineHeight:1}}>{val}</div>
         <div style={{fontSize:13,fontWeight:600,color:C.muted,marginTop:4}}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+function EditCard({color,icon,title,val,onChange,sub,mobile}:{color:string;icon:string;title:string;val:string;onChange:(v:string)=>void;sub:string;mobile?:boolean}){
+  return(
+    <div style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"22px 26px",display:"flex",alignItems:"center",gap:20,boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
+      <div style={{width:76,height:76,borderRadius:"50%",border:`3px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:`${color}0D`,flexShrink:0}}>
+        {icon}
+      </div>
+      <div style={{flex:1}}>
+        <div style={{fontSize:14,fontWeight:900,color,letterSpacing:0.6,marginBottom:4}}>{title}</div>
+        <input type="number" inputMode="numeric" placeholder="0" value={val} onChange={e=>onChange(e.target.value)}
+          style={{fontSize:40,fontWeight:900,color:C.text,lineHeight:1,border:"none",outline:"none",background:"transparent",width:"100%",maxWidth:130,fontFamily:"inherit",padding:0,borderBottom:`2px dashed ${C.border}`}}/>
+        <div style={{fontSize:13,fontWeight:600,color:C.muted,marginTop:4}}>{sub} · elle düzenlenebilir</div>
       </div>
     </div>
   );
@@ -137,6 +155,8 @@ export default function App(){
   const [yiRows,setYiRows]=useState<YIRow[]>(DEF_YI);
   const [ihRows,setIhRows]=useState<IHRow[]>(DEF_IH);
   const [mkRows,setMkRows]=useState<MKRow[]>(DEF_MK);
+  const [yiSiparis,setYiSiparis]=useState("");
+  const [yiFatura,setYiFatura]=useState("");
   const [stU,setStU]=useState<US>("idle");
   const [msgU,setMsgU]=useState("");
   const fileRef=useRef<HTMLInputElement>(null);
@@ -160,6 +180,8 @@ export default function App(){
   async function loadReport(id:string){
     const d=await sbLoad(id);
     if(d){
+      if(d.yurtici_siparis)setYiSiparis(String(d.yurtici_siparis));
+      if(d.yurtici_fatura)setYiFatura(String(d.yurtici_fatura));
       if(d.yurtici_rows?.length)setYiRows(d.yurtici_rows);
       if(d.ihracat_rows?.length)setIhRows(d.ihracat_rows);
       if(d.malkabul_rows?.length)setMkRows(d.malkabul_rows);
@@ -169,7 +191,7 @@ export default function App(){
 
   async function handleSave(){
     setSaving(true);
-    const p={tarih:todayStr(),yurtici_rows:yiRows,ihracat_rows:ihRows,malkabul_rows:mkRows};
+    const p={tarih:todayStr(),yurtici_siparis:parseInt(yiSiparis)||0,yurtici_fatura:parseInt(yiFatura)||0,yurtici_rows:yiRows,ihracat_rows:ihRows,malkabul_rows:mkRows};
     let id=raporId;
     if(id){await sbUpdate(id,p);}
     else{id=await sbSave(p);if(id){setRaporId(id);const u=`${window.location.origin}?rapor=${id}`;setShareUrl(u);window.history.pushState({},"",`?rapor=${id}`);}}
@@ -217,16 +239,18 @@ export default function App(){
             tarih:xlDT(iTar>=0?r[iTar]:r[5]).split(" ")[0],
           });
         }
-        setYiRows(rows);setMsgU(`${rows.length} sipariş yüklendi`);
+        setYiRows(rows);setYiSiparis(String(rows.length));setMsgU(`${rows.length} sipariş yüklendi`);
       } else {
-        const iMus=col("Müşteri","MÜŞTERİ"),iIl=col("İl","ÜLKE"),iBno=col("Belge No","BELGE"),iTar=col("Tarih","TARİH"),iAdt=col("Adet","ADET"),iCes=col("Çeşit","SKU");
+        // İhracat — hem Zeus formatı (Cari/BelgeNo) hem eski format (Müşteri) desteklenir
+        const iCari=col("Cari"),iMus=col("Müşteri","MÜŞTERİ"),iIl=col("İl","ÜLKE"),iBno=col("BelgeNo","Belge No"),iTar=col("Tarih","TARİH"),iAdt=col("Adet","ADET"),iCes=col("Çeşit","SKU");
+        const iAd=iCari>=0?iCari:(iMus>=0?iMus:3);
         const rows:IHRow[]=[];
         for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const mus=sv(iMus>=0?r[iMus]:r[3]);if(!mus)continue;
-          const tarih=xlDT(iTar>=0?r[iTar]:r[2]);
-          const sku=nn(iCes>=0?r[iCes]:r[7]);
-          const {durum,type}=terminType(tarih,sku);
-          rows.push({no:sv(iBno>=0?r[iBno]:r[1])||("IH-"+uid()),firma:mus,ulke:sv(iIl>=0?r[iIl]:r[4])||"—",termin:tarih,adet:nn(iAdt>=0?r[iAdt]:r[6]),durum,type});
+          const r=raw[i];const mus=sv(r[iAd]);if(!mus)continue;
+          const siparisTarihi=xlDT(iTar>=0?r[iTar]:r[5]).split(" ")[0];
+          const sku=nn(iCes>=0?r[iCes]:-1);
+          const {durum,type,terminStr}=terminType(siparisTarihi,sku);
+          rows.push({no:sv(iBno>=0?r[iBno]:r[2])||("IH-"+uid()),firma:mus,ulke:iIl>=0?sv(r[iIl])||"—":"—",siparisTarihi,termin:terminStr,adet:iAdt>=0?nn(r[iAdt]):0,durum,type});
         }
         setIhRows(rows);setMsgU(`${rows.length} sevkiyat yüklendi`);
       }
@@ -247,6 +271,7 @@ export default function App(){
   };
 
   // Özetler
+  const yiKalan=(parseInt(yiSiparis)||0)-(parseInt(yiFatura)||0);
   // Yurtiçi: gönderi tipine göre grup — en çok kullanılan 3 tip
   const tipMap:Record<string,number>={};
   yiRows.forEach(r=>{const k=r.tip||"DİĞER";tipMap[k]=(tipMap[k]||0)+1;});
@@ -370,9 +395,9 @@ export default function App(){
               {/* ── 8. ÖZET KARTLARI ── */}
               <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:16,marginBottom:20}}>
                 {tab==="yurtici"&&<>
-                  <SummaryCard type="green"  title="TOPLAM SİPARİŞ" val={yiRows.length} sub="Sipariş"/>
-                  <SummaryCard type="yellow" title={String(yiT1[0]).toUpperCase()} val={yiT1[1] as number} sub="Gönderi"/>
-                  <SummaryCard type="red"    title={String(yiT2[0]).toUpperCase()} val={yiT2[1] as number} sub="Gönderi"/>
+                  <EditCard color={C.navy}   icon="📋" title="TOPLAM SİPARİŞ"  val={yiSiparis} onChange={setYiSiparis} sub="Sipariş" mobile={mobile}/>
+                  <EditCard color={C.yellow} icon="🧾" title="KESİLEN FATURA"  val={yiFatura}  onChange={setYiFatura}  sub="Fatura"  mobile={mobile}/>
+                  <SummaryCard type={yiKalan>0?"red":"green"} title="KALAN SİPARİŞ" val={yiKalan} sub="Sipariş"/>
                 </>}
                 {tab==="ihracat"&&<>
                   <SummaryCard type="green"  title="ZAMANINDA" val={ihZ} sub="Sevkiyat"/>
@@ -414,14 +439,13 @@ export default function App(){
                 ))
               )}
               {tab==="ihracat"&&tableCard("🚢","İHRACAT SEVKİYAT LİSTESİ",ihRows.length,
-                ["Sipariş No","Firma","Ülke","Termin","Adet","Durum",""],
+                ["Sipariş No","Firma","Sipariş Tarihi","Termin","Durum",""],
                 ihRows.map((r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.firma}</td>
-                    <td style={td}>{r.ulke}</td>
-                    <td style={td}>{r.termin}</td>
-                    <td style={td}>{r.adet.toLocaleString("tr-TR")}</td>
+                    <td style={td}>{r.siparisTarihi}</td>
+                    <td style={{...td,fontWeight:900,color:r.type==="red"?C.red:r.type==="yellow"?"#B45309":"#15803D"}}>{r.termin}</td>
                     <td style={td}><Badge type={r.type} label={r.durum}/></td>
                     <td style={{...td,textAlign:"center",color:C.muted,cursor:"pointer",fontSize:17,width:40}}>⋮</td>
                   </tr>
@@ -432,10 +456,11 @@ export default function App(){
             {/* SAĞ KOLON */}
             <div>
               {tab==="yurtici"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
-                ["Toplam Sipariş",yiRows.length,"#fff"],
-                [String(yiT1[0]),yiT1[1] as number,"#86EFAC"],
-                [String(yiT2[0]),yiT2[1] as number,"#FCD34D"],
-                ["Diğer",yiT3Rest,"#FCA5A5"]]}/>}
+                ["Toplam Sipariş",parseInt(yiSiparis)||0,"#fff"],
+                ["Kesilen Fatura",parseInt(yiFatura)||0,"#86EFAC"],
+                ["Kalan Sipariş",yiKalan,yiKalan>0?"#FCA5A5":"#86EFAC"],
+                [String(yiT1[0]),yiT1[1] as number,"#FCD34D"],
+                [String(yiT2[0]),yiT2[1] as number,"#FCD34D"]]}/>}
               {tab==="ihracat"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
                 ["Toplam Sevkiyat",ihRows.length,"#fff"],["Zamanında",ihZ,"#86EFAC"],["Riskli",ihR,"#FCD34D"],["Gecikti",ihG,"#FCA5A5"]]}/>}
               {tab==="malKabul"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
