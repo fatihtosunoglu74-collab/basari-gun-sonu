@@ -2,10 +2,9 @@
 import React, { useState, useRef, useEffect } from "react";
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
-const SB_URL = "https://dqoreukmpkxmdputjigy.supabase.co";
-const SB_KEY = "sb_publishable_gKwtDDLun7O0UybI4R71cA_xMDT2DX8";
-const TABLE  = "gun_sonu_raporlar";
-
+const SB_URL="https://dqoreukmpkxmdputjigy.supabase.co";
+const SB_KEY="sb_publishable_gKwtDDLun7O0UybI4R71cA_xMDT2DX8";
+const TABLE="gun_sonu_raporlar";
 async function sbSave(p:object):Promise<string|null>{try{const r=await fetch(`${SB_URL}/rest/v1/${TABLE}`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,Prefer:"return=representation"},body:JSON.stringify(p)});const d=await r.json();return d[0]?.id??null;}catch{return null;}}
 async function sbUpdate(id:string,p:object){try{await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${id}`,{method:"PATCH",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`},body:JSON.stringify(p)});}catch{}}
 async function sbLoad(id:string){try{const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${id}&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});const d=await r.json();return d[0]??null;}catch{return null;}}
@@ -13,130 +12,96 @@ async function sbLoad(id:string){try{const r=await fetch(`${SB_URL}/rest/v1/${TA
 // ─── Yardımcılar ──────────────────────────────────────────────────────────────
 const sv=(v:any)=>String(v??"").trim();
 const nn=(v:any)=>{const n=parseFloat(sv(v));return isNaN(n)?0:Math.round(n);};
-const uid=()=>Math.random().toString(36).slice(2,9);
 const todayStr=()=>new Date().toISOString().split("T")[0];
-function xlDT(v:any):string{
-  if(typeof v==="number"&&v>1){const d=new Date(Math.round((v-25569)*86400*1000));return d.toLocaleDateString("tr-TR")+" "+d.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"});}
-  return sv(v)||new Date().toLocaleDateString("tr-TR");
+function xd(v:any):string{
+  if(v instanceof Date)return v.toLocaleDateString("tr-TR");
+  if(typeof v==="number"&&v>1){const d=new Date(Math.round((v-25569)*86400*1000));return d.toLocaleDateString("tr-TR");}
+  return sv(v);
 }
-function terminType(tarihStr:string,sku:number):{durum:string;type:string;terminStr:string}{
-  const m=tarihStr.match(/(\d{2})\.(\d{2})\.(\d{4})/);
-  if(!m)return{durum:"RİSKLİ",type:"yellow",terminStr:"—"};
-  const ilk=new Date(`${m[3]}-${m[2]}-${m[1]}`);
-  // SKU bilinmiyorsa (0) en geniş termin: 7 gün
-  const gun=sku<=0?7:sku<=50?1:sku<=100?2:sku<=250?4:7;
-  const son=new Date(ilk);son.setDate(ilk.getDate()+gun);
-  const terminStr=son.toLocaleDateString("tr-TR");
-  const today=new Date();today.setHours(0,0,0,0);
-  const kalan=Math.ceil((son.getTime()-today.getTime())/86400000);
-  if(kalan>1)return{durum:"ZAMANINDA",type:"green",terminStr};
-  if(kalan>=0)return{durum:"RİSKLİ",type:"yellow",terminStr};
-  return{durum:"GECİKTİ",type:"red",terminStr};
+function normDepo(v:string):string{
+  const s=sv(v).toUpperCase().replace(/\s/g,"");
+  if(s.includes("KARTEPE"))return"KARTEPE";
+  if(s.includes("TEM"))return"TEM.34";
+  if(s.includes("ÇATALCA")||s.includes("CATALCA"))return"ÇATALCA";
+  return sv(v).toUpperCase()||"TEM.34";
 }
 
-// ─── Tipler & Demo Veri ───────────────────────────────────────────────────────
-interface YIRow{no:string;musteri:string;depo:string;tip:string;tarih:string;}
-interface IHRow{no:string;firma:string;ulke:string;siparisTarihi:string;termin:string;adet:number;durum:string;type:string;}
-interface MKRow{no:string;tedarikci:string;tarih:string;durum:string;type:string;aciklama:string;}
+// ─── Tipler ───────────────────────────────────────────────────────────────────
+interface YIRow{depo:string;musteri:string;sebep:string;sku:number;adet:number;not:string;}
+interface IHRow{depo:string;musteri:string;ilkTarih:string;cikisTarih:string;sebep:string;sku:number;adet:number;termin:string;durum:string;type:string;}
+interface MKRow{depo:string;no:string;firma:string;tarih:string;adet:number;durum:string;type:string;}
+type YITot=Record<string,{siparis:number;fatura:number}>;
 type Tab="yurtici"|"ihracat"|"malKabul";
 type US="idle"|"loading"|"ok"|"err";
 
-const DEF_YI:YIRow[]=[
-  {no:"B4B-234558",musteri:"Oto Kerem - Bekir Yılmaz",depo:"TEM.34",tip:"CITY LOJİSTİC", tarih:"03.07.2026"},
-  {no:"B4B-234560",musteri:"Kasırga Otomotiv",        depo:"TEM.34",tip:"SEVKİYAT ARACI",tarih:"03.07.2026"},
-  {no:"B4B-234559",musteri:"Aluçlar Otomotiv",        depo:"TEM.34",tip:"SEVKİYAT ARACI",tarih:"03.07.2026"},
-];
-const DEF_IH:IHRow[]=[
-  {no:"IH-2026-101",firma:"Auto Balkan",  ulke:"Bulgaristan",siparisTarihi:"03.07.2026",termin:"10.07.2026",adet:420,durum:"ZAMANINDA",type:"green"},
-  {no:"IH-2026-102",firma:"Global Parts", ulke:"Almanya",    siparisTarihi:"02.07.2026",termin:"04.07.2026",adet:275,durum:"RİSKLİ",  type:"yellow"},
-  {no:"IH-2026-103",firma:"MENA Trade",   ulke:"BAE",        siparisTarihi:"25.06.2026",termin:"02.07.2026",adet:610,durum:"GECİKTİ", type:"red"},
-];
-const DEF_MK:MKRow[]=[
-  {no:"IRS-2026-1452",tedarikci:"Martaş Otomotiv",   tarih:"04.07.2026 08:30",durum:"BAŞLAMADI", type:"red",   aciklama:"İşleme alınmadı"},
-  {no:"IRS-2026-1453",tedarikci:"Başarı İthalat",    tarih:"04.07.2026 09:15",durum:"İŞLEMDE",   type:"yellow",aciklama:"Kontrol aşamasında"},
-  {no:"IRS-2026-1454",tedarikci:"Arıcıoğlu Otomotiv",tarih:"04.07.2026 10:45",durum:"TAMAMLANDI",type:"green", aciklama:"İşlem tamamlandı"},
-  {no:"IRS-2026-1455",tedarikci:"Sampa Otomotiv",    tarih:"04.07.2026 11:20",durum:"İŞLEMDE",   type:"yellow",aciklama:"Eksik parça bekleniyor"},
-  {no:"IRS-2026-1456",tedarikci:"Kanca Otomotiv",    tarih:"04.07.2026 13:10",durum:"BAŞLAMADI", type:"red",   aciklama:"Henüz başlanmadı"},
-];
-
-// ─── Renk Paleti (spec) ───────────────────────────────────────────────────────
 const C={navy:"#0B2F78",navyDk:"#061F55",navyH:"#062B66",green:"#22C55E",red:"#EF4444",yellow:"#F59E0B",
   pageBg:"#F8FAFD",card:"#FFFFFF",border:"#E2E8F0",text:"#0F2A5F",muted:"#64748B",
   softRed:"#FEF2F2",softYellow:"#FFF7E8",softGreen:"#F0FDF4"};
 
-// ─── Alt Bileşenler ───────────────────────────────────────────────────────────
+function ihType(durum:string):string{
+  const d=durum.toUpperCase();
+  if(d.includes("ZAMANINDA"))return"green";
+  if(d.includes("GEÇ")||d.includes("AŞTI")||d.includes("ACİL"))return"red";
+  return"yellow";
+}
+function mkType(durum:string):string{
+  const d=durum.toUpperCase();
+  if(d.includes("TAMAMLANDI")||d.includes("BITTI")||d.includes("BİTTİ"))return"green";
+  if(d.includes("İŞLEMDE")||d.includes("ISLEMDE")||d.includes("DEVAM"))return"yellow";
+  return"red";
+}
+
+// ─── Küçük bileşenler ─────────────────────────────────────────────────────────
 function Badge({type,label}:{type:string;label:string}){
   const bg=type==="green"?C.softGreen:type==="yellow"?C.softYellow:C.softRed;
   const cl=type==="green"?"#15803D":type==="yellow"?"#B45309":"#B91C1C";
   const br=type==="green"?"#BBF7D0":type==="yellow"?"#FDE68A":"#FECACA";
-  return <span style={{display:"inline-flex",alignItems:"center",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:900,letterSpacing:0.4,background:bg,color:cl,border:`1px solid ${br}`}}>{label}</span>;
+  return <span style={{display:"inline-flex",alignItems:"center",padding:"4px 11px",borderRadius:6,fontSize:11,fontWeight:900,letterSpacing:0.3,background:bg,color:cl,border:`1px solid ${br}`,whiteSpace:"nowrap"}}>{label}</span>;
 }
-
 function SummaryCard({type,title,val,sub}:{type:string;title:string;val:number;sub:string}){
-  const cl=type==="red"?C.red:type==="yellow"?C.yellow:C.green;
-  const ic=type==="red"?"📋":type==="yellow"?"🕐":"✓";
+  const cl=type==="red"?C.red:type==="yellow"?C.yellow:type==="navy"?C.navy:C.green;
+  const ic=type==="red"?"📋":type==="yellow"?"🕐":type==="navy"?"📦":"✓";
   return(
-    <div style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"22px 26px",display:"flex",alignItems:"center",gap:20,boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
-      <div style={{width:76,height:76,borderRadius:"50%",border:`3px solid ${cl}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:type==="green"?32:28,color:cl,background:`${cl}0D`,flexShrink:0,fontWeight:900}}>
-        {ic}
-      </div>
+    <div style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"20px 24px",display:"flex",alignItems:"center",gap:18,boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
+      <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${cl}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:type==="green"?30:26,color:cl,background:`${cl}0D`,flexShrink:0,fontWeight:900}}>{ic}</div>
       <div>
-        <div style={{fontSize:14,fontWeight:900,color:cl,letterSpacing:0.6,marginBottom:4}}>{title}</div>
-        <div style={{fontSize:40,fontWeight:900,color:C.text,lineHeight:1}}>{val}</div>
-        <div style={{fontSize:13,fontWeight:600,color:C.muted,marginTop:4}}>{sub}</div>
+        <div style={{fontSize:13,fontWeight:900,color:cl,letterSpacing:0.5,marginBottom:3}}>{title}</div>
+        <div style={{fontSize:38,fontWeight:900,color:C.text,lineHeight:1}}>{val.toLocaleString("tr-TR")}</div>
+        <div style={{fontSize:12,fontWeight:600,color:C.muted,marginTop:3}}>{sub}</div>
       </div>
     </div>
   );
 }
-
-function EditCard({color,icon,title,val,onChange,sub,mobile}:{color:string;icon:string;title:string;val:string;onChange:(v:string)=>void;sub:string;mobile?:boolean}){
-  return(
-    <div style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"22px 26px",display:"flex",alignItems:"center",gap:20,boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
-      <div style={{width:76,height:76,borderRadius:"50%",border:`3px solid ${color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:`${color}0D`,flexShrink:0}}>
-        {icon}
-      </div>
-      <div style={{flex:1}}>
-        <div style={{fontSize:14,fontWeight:900,color,letterSpacing:0.6,marginBottom:4}}>{title}</div>
-        <input type="number" inputMode="numeric" placeholder="0" value={val} onChange={e=>onChange(e.target.value)}
-          style={{fontSize:40,fontWeight:900,color:C.text,lineHeight:1,border:"none",outline:"none",background:"transparent",width:"100%",maxWidth:130,fontFamily:"inherit",padding:0,borderBottom:`2px dashed ${C.border}`}}/>
-        <div style={{fontSize:13,fontWeight:600,color:C.muted,marginTop:4}}>{sub} · elle düzenlenebilir</div>
-      </div>
-    </div>
-  );
-}
-
 function ContactCard(){
   const rows=[
-    {icon:"📍",color:C.navy, text:"Akçaburgaz Mah. 3126. Sk. No: 10/1 DMN Plaza Kat:2 Esenyurt / İSTANBUL"},
-    {icon:"📞",color:C.navy, text:"+90 537 952 06 13"},
-    {icon:"📞",color:C.navy, text:"+90 212 632 59 65 (Fax)"},
-    {icon:"🟢",color:"#25D366",text:"90 537 952 06 13"},
-    {icon:"✈️",color:C.navy, text:"info@basariotomotive.com"},
+    {icon:"📍",text:"Akçaburgaz Mah. 3126. Sk. No: 10/1 DMN Plaza Kat:2 Esenyurt / İSTANBUL"},
+    {icon:"📞",text:"+90 537 952 06 13"},
+    {icon:"📞",text:"+90 212 632 59 65 (Fax)"},
+    {icon:"🟢",text:"90 537 952 06 13"},
+    {icon:"✈️",text:"info@basariotomotive.com"},
   ];
   return(
-    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"18px 20px",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
       {rows.map(({icon,text},i)=>(
-        <div key={i} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"8px 0"}}>
-          <span style={{fontSize:16,flexShrink:0,lineHeight:1.3}}>{icon}</span>
-          <span style={{fontSize:13,fontWeight:700,color:C.text,lineHeight:1.45}}>{text}</span>
+        <div key={i} style={{display:"flex",alignItems:"flex-start",gap:11,padding:"7px 0"}}>
+          <span style={{fontSize:15,flexShrink:0,lineHeight:1.3}}>{icon}</span>
+          <span style={{fontSize:12.5,fontWeight:700,color:C.text,lineHeight:1.45}}>{text}</span>
         </div>
       ))}
     </div>
   );
 }
-
-function DayEndSummary({title,rows}:{title:string;rows:[string,number,string][]}){
+function DayEndSummary({title,rows}:{title:string;rows:[string,number|string,string][]}){
   return(
-    <div style={{background:`linear-gradient(160deg,${C.navyH} 0%,${C.navy} 100%)`,borderRadius:14,padding:"22px",color:"#fff",marginBottom:16,position:"relative",overflow:"hidden",boxShadow:"0 10px 30px rgba(6,31,85,0.25)"}}>
-      <div style={{fontWeight:900,fontSize:15,letterSpacing:0.6,marginBottom:14}}>{title}</div>
+    <div style={{background:`linear-gradient(160deg,${C.navyH} 0%,${C.navy} 100%)`,borderRadius:14,padding:"20px",color:"#fff",marginBottom:14,boxShadow:"0 10px 30px rgba(6,31,85,0.25)"}}>
+      <div style={{fontWeight:900,fontSize:14,letterSpacing:0.5,marginBottom:12}}>{title}</div>
       {rows.map(([l,v,c],i)=>(
-        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<rows.length-1?"1px solid rgba(255,255,255,0.12)":"none"}}>
-          <span style={{fontSize:14,fontWeight:700,color:"rgba(255,255,255,0.85)"}}>{l}</span>
-          <span style={{fontSize:17,fontWeight:900,color:c}}>{v}</span>
+        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<rows.length-1?"1px solid rgba(255,255,255,0.12)":"none"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)"}}>{l}</span>
+          <span style={{fontSize:16,fontWeight:900,color:c}}>{typeof v==="number"?v.toLocaleString("tr-TR"):v}</span>
         </div>
       ))}
-      {/* Depo/forklift/kamyon silüetleri */}
-      <div style={{marginTop:18,display:"flex",justifyContent:"space-around",fontSize:34,opacity:0.18,filter:"grayscale(1) brightness(3)"}}>
+      <div style={{marginTop:14,display:"flex",justifyContent:"space-around",fontSize:30,opacity:0.18,filter:"grayscale(1) brightness(3)"}}>
         <span>🏭</span><span>🚜</span><span>🚛</span>
       </div>
     </div>
@@ -145,18 +110,13 @@ function DayEndSummary({title,rows}:{title:string;rows:[string,number,string][]}
 
 // ─── ANA SAYFA ────────────────────────────────────────────────────────────────
 export default function App(){
-  const [tab,setTab]=useState<Tab>("malKabul");
+  const [tab,setTab]=useState<Tab>("yurtici");
   const [mobile,setMobile]=useState(false);
-  useEffect(()=>{
-    const chk=()=>setMobile(window.innerWidth<900);
-    chk();window.addEventListener("resize",chk);
-    return()=>window.removeEventListener("resize",chk);
-  },[]);
-  const [yiRows,setYiRows]=useState<YIRow[]>(DEF_YI);
-  const [ihRows,setIhRows]=useState<IHRow[]>(DEF_IH);
-  const [mkRows,setMkRows]=useState<MKRow[]>(DEF_MK);
-  const [yiSiparis,setYiSiparis]=useState("");
-  const [yiFatura,setYiFatura]=useState("");
+  const [depoFiltre,setDepoFiltre]=useState("Tümü");
+  const [yiTot,setYiTot]=useState<YITot>({});
+  const [yiRows,setYiRows]=useState<YIRow[]>([]);
+  const [ihRows,setIhRows]=useState<IHRow[]>([]);
+  const [mkRows,setMkRows]=useState<MKRow[]>([]);
   const [stU,setStU]=useState<US>("idle");
   const [msgU,setMsgU]=useState("");
   const fileRef=useRef<HTMLInputElement>(null);
@@ -170,6 +130,12 @@ export default function App(){
   const today=new Date().toLocaleDateString("tr-TR",{day:"2-digit",month:"long",year:"numeric",weekday:"long"});
 
   useEffect(()=>{
+    const chk=()=>setMobile(window.innerWidth<900);
+    chk();window.addEventListener("resize",chk);
+    return()=>window.removeEventListener("resize",chk);
+  },[]);
+
+  useEffect(()=>{
     const id=new URLSearchParams(window.location.search).get("rapor");
     if(id){setRaporId(id);setIsView(true);loadReport(id);
       const iv=setInterval(()=>loadReport(id).then(()=>setLastRefresh(new Date())),30000);
@@ -180,18 +146,21 @@ export default function App(){
   async function loadReport(id:string){
     const d=await sbLoad(id);
     if(d){
-      if(d.yurtici_siparis)setYiSiparis(String(d.yurtici_siparis));
-      if(d.yurtici_fatura)setYiFatura(String(d.yurtici_fatura));
-      if(d.yurtici_rows?.length)setYiRows(d.yurtici_rows);
-      if(d.ihracat_rows?.length)setIhRows(d.ihracat_rows);
-      if(d.malkabul_rows?.length)setMkRows(d.malkabul_rows);
+      const yr=d.yurtici_rows;
+      if(yr&&!Array.isArray(yr)){setYiTot(yr.totals??{});setYiRows(yr.rows??[]);}
+      else if(Array.isArray(yr))setYiRows(yr);
+      if(Array.isArray(d.ihracat_rows))setIhRows(d.ihracat_rows);
+      if(Array.isArray(d.malkabul_rows))setMkRows(d.malkabul_rows);
       setLastRefresh(new Date());
     }
   }
 
   async function handleSave(){
     setSaving(true);
-    const p={tarih:todayStr(),yurtici_siparis:parseInt(yiSiparis)||0,yurtici_fatura:parseInt(yiFatura)||0,yurtici_rows:yiRows,ihracat_rows:ihRows,malkabul_rows:mkRows};
+    const sumS=Object.values(yiTot).reduce((s,t)=>s+t.siparis,0);
+    const sumF=Object.values(yiTot).reduce((s,t)=>s+t.fatura,0);
+    const p={tarih:todayStr(),yurtici_siparis:sumS,yurtici_fatura:sumF,
+      yurtici_rows:{totals:yiTot,rows:yiRows},ihracat_rows:ihRows,malkabul_rows:mkRows};
     let id=raporId;
     if(id){await sbUpdate(id,p);}
     else{id=await sbSave(p);if(id){setRaporId(id);const u=`${window.location.origin}?rapor=${id}`;setShareUrl(u);window.history.pushState({},"",`?rapor=${id}`);}}
@@ -200,96 +169,128 @@ export default function App(){
       window.open(`https://wa.me/?text=${encodeURIComponent(`📋 *GÜN SONU RAPORU — ${new Date().toLocaleDateString("tr-TR")}*\n\nCanlı rapor:\n${u}`)}`,"_blank");}
   }
 
-  // ─── Excel Parse (aktif sekmeye göre) ─────────────────────────────────────
+  // ─── 3 sayfalı Gün Sonu Exceli parse ──────────────────────────────────────
   async function parseExcel(file:File){
     setStU("loading");
     try{
       const XLSX=await import("xlsx");
-      const wb=XLSX.read(await file.arrayBuffer());
-      const ws=wb.Sheets["data"]??wb.Sheets[wb.SheetNames[0]];
-      const raw:any[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-      const hi=raw.findIndex(r=>r.some((c:any)=>["Müşteri","Firma","FİRMA"].includes(sv(c))||sv(c).includes("MÜŞTERİ")));
-      const hRow=hi>=0?raw[hi]:raw[0];
-      const col=(k:string,k2="")=>hRow.findIndex((c:any)=>sv(c)===k||sv(c).includes(k)||(k2&&sv(c).includes(k2)));
+      const wb=XLSX.read(await file.arrayBuffer(),{cellDates:true});
+      const findSheet=(k:string)=>wb.SheetNames.find(n=>n.toLowerCase().includes(k));
+      const snYi=findSheet("yurt"),snIh=findSheet("ihracat")??findSheet("İhracat".toLowerCase()),snMk=findSheet("mal");
+      if(!snYi&&!snIh&&!snMk){setMsgU("3 sayfalı Gün Sonu şablonu bulunamadı");setStU("err");return;}
 
-      if(tab==="malKabul"){
-        const iCnm=col("Cari İsmi"),iBno=col("BelgeNo"),iTar=col("Tarih"),iDur=col("Durum");
-        const rows:MKRow[]=[];
-        for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const fir=sv(iCnm>=0?r[iCnm]:r[6]);if(!fir)continue;
-          const d0=sv(iDur>=0?r[iDur]:r[9]);
-          const durum=d0==="Başlamadı"?"BAŞLAMADI":d0==="İşlemde"?"İŞLEMDE":d0==="Tamamlandı"?"TAMAMLANDI":d0.toUpperCase()||"BAŞLAMADI";
-          const type=durum==="TAMAMLANDI"?"green":durum==="İŞLEMDE"?"yellow":"red";
-          const acik=durum==="TAMAMLANDI"?"İşlem tamamlandı":durum==="İŞLEMDE"?"Kontrol aşamasında":"İşleme alınmadı";
-          rows.push({no:sv(iBno>=0?r[iBno]:r[2])||("IRS-"+uid()),tedarikci:fir,tarih:xlDT(iTar>=0?r[iTar]:r[4]),durum,type,aciklama:acik});
+      const rowsOf=(sn:string)=>XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""}) as any[][];
+
+      // ── Depo tespiti: Mal Kabul sayfasındaki Depo kolonundan
+      let fileDepo="TEM.34";
+      if(snMk){
+        const raw=rowsOf(snMk);
+        const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Firma"));
+        if(hi>=0){
+          const iDep=raw[hi].findIndex((c:any)=>sv(c)==="Depo");
+          const cnt:Record<string,number>={};
+          for(let i=hi+1;i<raw.length;i++){const d=normDepo(sv(raw[i][iDep>=0?iDep:1]));if(d){cnt[d]=(cnt[d]||0)+1;}}
+          const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+          if(top)fileDepo=top[0];
         }
-        setMkRows(rows);setMsgU(`${rows.length} irsaliye yüklendi`);
-      } else if(tab==="yurtici"){
-        // Zeus Yurtiçi formatı: Firma | Depo | BelgeNo | Cari | Gönderi Tipi | Tarih
-        const iCari=col("Cari"),iMus=col("Müşteri","MÜŞTERİ"),iBno=col("BelgeNo","Belge No"),iDep=col("Depo"),iTip=col("Gönderi Tipi","Gönderi"),iTar=col("Tarih","TARİH");
-        const iAd=iCari>=0?iCari:(iMus>=0?iMus:3);
-        const rows:YIRow[]=[];
-        for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const mus=sv(r[iAd]);if(!mus)continue;
-          rows.push({
-            no:sv(iBno>=0?r[iBno]:r[2])||("B4B-"+uid()),
-            musteri:mus,
-            depo:sv(iDep>=0?r[iDep]:r[1])||"TEM.34",
-            tip:sv(iTip>=0?r[iTip]:r[4])||"—",
-            tarih:xlDT(iTar>=0?r[iTar]:r[5]).split(" ")[0],
-          });
-        }
-        setYiRows(rows);setYiSiparis(String(rows.length));setMsgU(`${rows.length} sipariş yüklendi`);
-      } else {
-        // İhracat — hem Zeus formatı (Cari/BelgeNo) hem eski format (Müşteri) desteklenir
-        const iCari=col("Cari"),iMus=col("Müşteri","MÜŞTERİ"),iIl=col("İl","ÜLKE"),iBno=col("BelgeNo","Belge No"),iTar=col("Tarih","TARİH"),iAdt=col("Adet","ADET"),iCes=col("Çeşit","SKU");
-        const iAd=iCari>=0?iCari:(iMus>=0?iMus:3);
-        const rows:IHRow[]=[];
-        for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const mus=sv(r[iAd]);if(!mus)continue;
-          const siparisTarihi=xlDT(iTar>=0?r[iTar]:r[5]).split(" ")[0];
-          const sku=nn(iCes>=0?r[iCes]:-1);
-          const {durum,type,terminStr}=terminType(siparisTarihi,sku);
-          rows.push({no:sv(iBno>=0?r[iBno]:r[2])||("IH-"+uid()),firma:mus,ulke:iIl>=0?sv(r[iIl])||"—":"—",siparisTarihi,termin:terminStr,adet:iAdt>=0?nn(r[iAdt]):0,durum,type});
-        }
-        setIhRows(rows);setMsgU(`${rows.length} sevkiyat yüklendi`);
       }
+
+      // ── Yurtiçi: SİPARİŞ SAYISI | FATURA EDİLEN | KALAN | MÜŞTERİ | SEBEP | SKU | ADET | NOT
+      if(snYi){
+        const raw=rowsOf(snYi);
+        const hi=raw.findIndex(r=>sv(r[0]).includes("SİPARİŞ SAYISI"));
+        if(hi>=0){
+          let sip=0,fat=0;
+          const rows:YIRow[]=[];
+          for(let i=hi+1;i<raw.length;i++){
+            const r=raw[i];
+            if(nn(r[0])>0)sip=nn(r[0]);
+            if(nn(r[1])>0)fat=nn(r[1]);
+            const mus=sv(r[3]);
+            if(mus&&!mus.includes("AÇIKLAMA")){
+              rows.push({depo:fileDepo,musteri:mus,sebep:sv(r[4]),sku:nn(r[5]),adet:nn(r[6]),not:sv(r[7])});
+            }
+          }
+          setYiTot(t=>({...t,[fileDepo]:{siparis:sip,fatura:fat}}));
+          setYiRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+        }
+      }
+
+      // ── İhracat: ...MÜŞTERİ(3) İLK TARİH(4) ÇIKIŞ(5) SEBEP(6) SKU(7) ADET(8) SON TERMİN(10) TERMİN DURUMU(12)
+      if(snIh){
+        const raw=rowsOf(snIh);
+        const hi=raw.findIndex(r=>sv(r[0]).includes("SİPARİŞ SAYISI"));
+        if(hi>=0){
+          const rows:IHRow[]=[];
+          for(let i=hi+1;i<raw.length;i++){
+            const r=raw[i];const mus=sv(r[3]);
+            if(!mus||mus.includes("AÇIKLAMA"))continue;
+            const durum=sv(r[12])||sv(r[14])||"TERMİN İÇİNDE";
+            rows.push({depo:fileDepo,musteri:mus,ilkTarih:xd(r[4]),cikisTarih:xd(r[5]),sebep:sv(r[6]),
+              sku:nn(r[7]),adet:nn(r[8]),termin:xd(r[10]),durum,type:ihType(durum)});
+          }
+          setIhRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+        }
+      }
+
+      // ── Mal Kabul: Firma | Depo | BelgeNo | (BelgeNo2) | Tarih | Cari | Adet | Durum
+      if(snMk){
+        const raw=rowsOf(snMk);
+        const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Firma"));
+        if(hi>=0){
+          const h=raw[hi];
+          const col=(k:string)=>h.findIndex((c:any)=>sv(c)===k);
+          const iF=col("Firma"),iD=col("Depo"),iB=col("BelgeNo"),iT=col("Tarih"),iA=col("Adet"),iDu=col("Durum");
+          const rows:MKRow[]=[];
+          for(let i=hi+1;i<raw.length;i++){
+            const r=raw[i];const fir=sv(r[iF>=0?iF:0]);if(!fir)continue;
+            const durum=sv(r[iDu>=0?iDu:7]).toUpperCase()||"BAŞLAMADI";
+            rows.push({depo:normDepo(sv(r[iD>=0?iD:1]))||fileDepo,no:sv(r[iB>=0?iB:2]),firma:fir,
+              tarih:xd(r[iT>=0?iT:4]),adet:nn(r[iA>=0?iA:6]),durum,type:mkType(durum)});
+          }
+          setMkRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+        }
+      }
+
+      setMsgU(`${fileDepo} verileri yüklendi`);
       setStU("ok");
-    }catch{setMsgU("Dosya okunamadı");setStU("err");}
+      setDepoFiltre("Tümü");
+    }catch(e){setMsgU("Dosya okunamadı");setStU("err");}
   }
 
-  // ─── Sekme konfigürasyonları ──────────────────────────────────────────────
+  // ─── Filtreleme ────────────────────────────────────────────────────────────
+  const depolar=Array.from(new Set([...Object.keys(yiTot),...yiRows.map(r=>r.depo),...ihRows.map(r=>r.depo),...mkRows.map(r=>r.depo)])).filter(Boolean);
+  const fYi=depoFiltre==="Tümü"?yiRows:yiRows.filter(r=>r.depo===depoFiltre);
+  const fIh=depoFiltre==="Tümü"?ihRows:ihRows.filter(r=>r.depo===depoFiltre);
+  const fMk=depoFiltre==="Tümü"?mkRows:mkRows.filter(r=>r.depo===depoFiltre);
+
+  // Yurtiçi toplamları (filtreye göre)
+  const totKeys=depoFiltre==="Tümü"?Object.keys(yiTot):[depoFiltre];
+  const totS=totKeys.reduce((s,k)=>s+(yiTot[k]?.siparis||0),0);
+  const totF=totKeys.reduce((s,k)=>s+(yiTot[k]?.fatura||0),0);
+  const totK=totS-totF;
+
+  // İhracat özet
+  const ihZ=fIh.filter(r=>r.type==="green").length, ihR2=fIh.filter(r=>r.type==="yellow").length, ihG=fIh.filter(r=>r.type==="red").length;
+  // Mal kabul özet
+  const mkB=fMk.filter(r=>r.type==="red").length, mkI=fMk.filter(r=>r.type==="yellow").length, mkT=fMk.filter(r=>r.type==="green").length;
+
+  const th:React.CSSProperties={padding:"12px 16px",textAlign:"left",fontSize:12,fontWeight:800,color:C.muted,borderBottom:`1px solid ${C.border}`,letterSpacing:0.2,whiteSpace:"nowrap"};
+  const td:React.CSSProperties={padding:"13px 16px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${C.border}`,color:C.text};
+
   const TABS:{id:Tab;label:string;icon:string}[]=[
-    {id:"yurtici", label:"Yurtiçi", icon:"🚚"},
-    {id:"ihracat", label:"İhracat", icon:"🚢"},
+    {id:"yurtici",label:"Yurtiçi",icon:"🚚"},
+    {id:"ihracat",label:"İhracat",icon:"🚢"},
     {id:"malKabul",label:"Mal Kabul",icon:"🏭"},
   ];
-  const UPLOAD:{[k in Tab]:{title:string;sub:string}}={
-    yurtici: {title:"Yurtiçi Excel Dosyası Yükle",  sub:"Sipariş, faturalanan ve kalan verilerini yükleyin."},
-    ihracat: {title:"İhracat Excel Dosyası Yükle",  sub:"Termin, müşteri ve durum verilerini yükleyin."},
-    malKabul:{title:"Mal Kabul Excel Dosyası Yükle",sub:"İrsaliye, tedarikçi ve işlem verilerini yükleyin."},
-  };
-
-  // Özetler
-  const yiKalan=(parseInt(yiSiparis)||0)-(parseInt(yiFatura)||0);
-  // Yurtiçi: gönderi tipine göre grup — en çok kullanılan 3 tip
-  const tipMap:Record<string,number>={};
-  yiRows.forEach(r=>{const k=r.tip||"DİĞER";tipMap[k]=(tipMap[k]||0)+1;});
-  const tipTop=Object.entries(tipMap).sort((a,b)=>b[1]-a[1]);
-  const yiT1=tipTop[0]??["—",0], yiT2=tipTop[1]??["—",0], yiT3Rest=tipTop.slice(2).reduce((s,[,v])=>s+v,0);
-  const ihZ=ihRows.filter(r=>r.type==="green").length, ihR=ihRows.filter(r=>r.type==="yellow").length, ihG=ihRows.filter(r=>r.type==="red").length;
-  const mkB=mkRows.filter(r=>r.type==="red").length, mkI=mkRows.filter(r=>r.type==="yellow").length, mkT=mkRows.filter(r=>r.type==="green").length;
-
-  const th:React.CSSProperties={padding:"13px 18px",textAlign:"left",fontSize:12,fontWeight:800,color:C.muted,borderBottom:`1px solid ${C.border}`,letterSpacing:0.2};
-  const td:React.CSSProperties={padding:"15px 18px",fontSize:13.5,fontWeight:700,borderBottom:`1px solid ${C.border}`,color:C.text};
 
   const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode)=>(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
-      <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:900,fontSize:15,color:C.text,letterSpacing:0.4}}>
           <span style={{fontSize:17}}>{icon}</span>{title}
         </div>
-        <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt</span>
+        <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt{depoFiltre!=="Tümü"?` · ${depoFiltre}`:""}</span>
       </div>
       <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch" as any}}>
         <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
@@ -303,7 +304,7 @@ export default function App(){
   return(
     <div style={{minHeight:"100vh",background:C.pageBg,fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif',color:C.text}}>
 
-      {/* ── 1. HEADER — 70px, koyu navy, sağ alan YOK ── */}
+      {/* HEADER */}
       <header style={{minHeight:mobile?56:70,background:C.navyDk,display:"flex",alignItems:"center",flexWrap:"wrap",gap:mobile?8:0,padding:mobile?"8px 16px":"0 36px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(6,31,85,0.35)"}}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/basari-logo-white.png" alt="Başarı Otomotiv" style={{height:mobile?30:42,objectFit:"contain"}}
@@ -316,93 +317,109 @@ export default function App(){
         {raporId&&<span style={{marginLeft:"auto",fontSize:12,fontWeight:800,color:"#86efac",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(134,239,172,0.4)",borderRadius:20,padding:"4px 14px"}}>🟢 Canlı</span>}
       </header>
 
-      {/* ── 2. HERO BANNER — gerçek asset ── */}
+      {/* HERO */}
       <div style={{width:"100%",lineHeight:0,background:C.navyDk}}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/basari-logistics-hero.png" alt="Güçlü Lojistik Güvenilir Teslimat"
-          style={{width:"100%",height:"auto",maxHeight:220,objectFit:"cover",objectPosition:"center",display:"block"}}/>
+        <img src="/basari-logistics-hero.png" alt="Güçlü Lojistik" style={{width:"100%",height:"auto",maxHeight:mobile?120:220,objectFit:"cover",objectPosition:"center",display:"block"}}/>
       </div>
 
-      {/* ── 4. ANA CONTAINER — banner'a hafif bindirilmiş ── */}
+      {/* ANA CONTAINER */}
       <div style={{maxWidth:1500,margin:"-18px auto 0",padding:mobile?"0 10px 40px":"0 24px 60px",position:"relative",zIndex:5}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:mobile?16:22,boxShadow:"0 20px 60px rgba(11,47,120,0.10)",padding:mobile?"14px 12px":"22px 24px"}}>
 
-          {/* Canlı / paylaşım banner */}
           {isView&&(
-            <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:12,padding:"9px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-              <span style={{fontSize:13,fontWeight:700,color:"#15803D"}}>🔄 Otomatik güncelleniyor (30 sn){lastRefresh&&` · ${lastRefresh.toLocaleTimeString("tr-TR")}`}</span>
-              <button onClick={()=>raporId&&loadReport(raporId)} style={{border:"1px solid #86EFAC",borderRadius:8,background:"#fff",color:"#15803D",padding:"4px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>↺ Yenile</button>
+            <div style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:12,padding:"9px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <span style={{fontSize:13,fontWeight:700,color:"#15803D"}}>🔄 Otomatik güncelleniyor{lastRefresh&&` · ${lastRefresh.toLocaleTimeString("tr-TR")}`}</span>
+              <button onClick={()=>raporId&&loadReport(raporId)} style={{border:"1px solid #86EFAC",borderRadius:8,background:"#fff",color:"#15803D",padding:"4px 12px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>↺ Yenile</button>
             </div>
           )}
           {shareUrl&&(
-            <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12,padding:"10px 18px",display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+            <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:12,padding:"10px 16px",display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
               <span>🔗</span>
               <span style={{flex:1,fontSize:12,color:C.muted,fontFamily:"monospace",wordBreak:"break-all"}}>{shareUrl}</span>
               <button onClick={async()=>{await navigator.clipboard.writeText(shareUrl);setCopied(true);setTimeout(()=>setCopied(false),2000);}}
-                style={{border:"1px solid #BFDBFE",borderRadius:8,background:"#fff",color:C.navy,padding:"5px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                {copied?"✅ Kopyalandı":"📋 Kopyala"}
+                style={{border:"1px solid #BFDBFE",borderRadius:8,background:"#fff",color:C.navy,padding:"5px 12px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                {copied?"✅":"📋 Kopyala"}
               </button>
             </div>
           )}
 
-          {/* ── 5. SEKMELER + KAYDET ── */}
-          <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:"stretch",gap:mobile?10:14,marginBottom:18}}>
+          {/* SEKMELER + KAYDET */}
+          <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:"stretch",gap:mobile?10:14,marginBottom:14}}>
             <div style={{display:"flex",gap:mobile?8:14,flex:1}}>
               {TABS.map(t=>{
                 const act=tab===t.id;
                 return(
                   <button key={t.id} onClick={()=>setTab(t.id)}
-                    style={{flex:1,maxWidth:mobile?undefined:300,display:"flex",alignItems:"center",justifyContent:"center",gap:mobile?6:12,height:mobile?52:64,border:act?"none":`1px solid ${C.border}`,borderRadius:12,
-                      background:act?C.navyDk:"#fff",color:act?"#fff":C.navy,fontSize:mobile?13:17,fontWeight:900,cursor:"pointer",fontFamily:"inherit",
+                    style={{flex:1,maxWidth:mobile?undefined:300,display:"flex",alignItems:"center",justifyContent:"center",gap:mobile?6:12,height:mobile?50:62,border:act?"none":`1px solid ${C.border}`,borderRadius:12,
+                      background:act?C.navyDk:"#fff",color:act?"#fff":C.navy,fontSize:mobile?13:16,fontWeight:900,cursor:"pointer",fontFamily:"inherit",
                       boxShadow:act?"0 10px 26px rgba(6,31,85,0.30)":"0 4px 12px rgba(11,47,120,0.04)",transition:"all .15s"}}>
-                    <span style={{fontSize:mobile?20:26}}>{t.icon}</span>{t.label}
+                    <span style={{fontSize:mobile?18:24}}>{t.icon}</span>{t.label}
                   </button>
                 );
               })}
             </div>
             <button onClick={handleSave} disabled={saving}
-              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 26px",height:mobile?50:64,fontWeight:900,fontSize:mobile?14:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-              <span style={{fontSize:20}}>{saving?"⏳":"🔗"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 24px",height:mobile?48:62,fontWeight:900,fontSize:mobile?14:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              <span style={{fontSize:18}}>{saving?"⏳":"🔗"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
             </button>
           </div>
 
-          {/* ── 7. EXCEL UPLOAD BAR ── */}
-          <div style={{background:"#fff",border:`1px solid ${stU==="ok"?"#BBF7D0":stU==="err"?"#FECACA":C.border}`,borderRadius:14,padding:mobile?"12px 14px":"16px 22px",display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",gap:mobile?12:0,justifyContent:"space-between",marginBottom:20,boxShadow:"0 4px 14px rgba(11,47,120,0.04)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:16}}>
-              <div style={{width:52,height:52,borderRadius:12,background:"#E7F6EC",border:"1px solid #C6E9D2",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <span style={{color:"#1D6F42",fontWeight:900,fontSize:22,fontFamily:"Georgia,serif"}}>X</span>
+          {/* DEPO FİLTRE ÇUBUĞU */}
+          {depolar.length>0&&(
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+              <span style={{fontSize:12,fontWeight:800,color:C.muted,letterSpacing:0.4}}>🏬 DEPO:</span>
+              {["Tümü",...depolar].map(d=>{
+                const act=depoFiltre===d;
+                return(
+                  <button key={d} onClick={()=>setDepoFiltre(d)}
+                    style={{padding:"7px 18px",borderRadius:20,border:act?"none":`1px solid ${C.border}`,
+                      background:act?C.navy:"#fff",color:act?"#fff":C.navy,fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",
+                      boxShadow:act?"0 6px 14px rgba(11,47,120,0.25)":"none",transition:"all .15s"}}>
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* UPLOAD BAR */}
+          <div style={{background:"#fff",border:`1px solid ${stU==="ok"?"#BBF7D0":stU==="err"?"#FECACA":C.border}`,borderRadius:14,padding:mobile?"12px 14px":"14px 20px",display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",gap:mobile?10:0,justifyContent:"space-between",marginBottom:18,boxShadow:"0 4px 14px rgba(11,47,120,0.04)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:48,height:48,borderRadius:12,background:"#E7F6EC",border:"1px solid #C6E9D2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{color:"#1D6F42",fontWeight:900,fontSize:20,fontFamily:"Georgia,serif"}}>X</span>
               </div>
               <div>
-                <div style={{fontWeight:900,fontSize:16,color:C.text}}>
-                  {stU==="ok"?`✅ ${msgU}`:stU==="err"?`❌ ${msgU}`:UPLOAD[tab].title}
+                <div style={{fontWeight:900,fontSize:15,color:C.text}}>
+                  {stU==="ok"?`✅ ${msgU}`:stU==="err"?`❌ ${msgU}`:"Gün Sonu Exceli Yükle"}
                 </div>
-                <div style={{fontSize:13,color:C.muted,fontWeight:600,marginTop:3}}>
-                  {stU==="ok"?"Değiştirmek için tekrar Excel seçebilirsiniz":UPLOAD[tab].sub}
+                <div style={{fontSize:12,color:C.muted,fontWeight:600,marginTop:2}}>
+                  {stU==="ok"?"Diğer deponun dosyasını da yükleyebilirsiniz":"3 sayfalı şablon — TEM.34 ve Kartepe dosyalarını ayrı ayrı yükleyin, depo otomatik tanınır"}
                 </div>
               </div>
             </div>
             <button onClick={()=>fileRef.current?.click()}
-              style={{display:"flex",alignItems:"center",gap:9,border:`1.5px solid ${C.navy}`,color:C.navy,background:"#fff",borderRadius:11,padding:"12px 24px",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
-              <span style={{fontSize:16}}>⇧</span>{stU==="loading"?"Yükleniyor...":"Excel Seç"}
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,border:`1.5px solid ${C.navy}`,color:C.navy,background:"#fff",borderRadius:11,padding:"11px 22px",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
+              <span>⇧</span>{stU==="loading"?"Yükleniyor...":"Excel Seç"}
             </button>
           </div>
 
-          {/* ── 9. İKİ KOLON ── */}
-          <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 310px",gap:20,alignItems:"start"}}>
+          {/* İKİ KOLON */}
+          <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 300px",gap:18,alignItems:"start"}}>
 
-            {/* SOL KOLON */}
+            {/* SOL */}
             <div>
-              {/* ── 8. ÖZET KARTLARI ── */}
-              <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:16,marginBottom:20}}>
+              {/* Özet kartları */}
+              <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:18}}>
                 {tab==="yurtici"&&<>
-                  <EditCard color={C.navy}   icon="📋" title="TOPLAM SİPARİŞ"  val={yiSiparis} onChange={setYiSiparis} sub="Sipariş" mobile={mobile}/>
-                  <EditCard color={C.yellow} icon="🧾" title="KESİLEN FATURA"  val={yiFatura}  onChange={setYiFatura}  sub="Fatura"  mobile={mobile}/>
-                  <SummaryCard type={yiKalan>0?"red":"green"} title="KALAN SİPARİŞ" val={yiKalan} sub="Sipariş"/>
+                  <SummaryCard type="navy"  title="TOPLAM SİPARİŞ" val={totS} sub="Sipariş"/>
+                  <SummaryCard type="green" title="KESİLEN FATURA" val={totF} sub="Fatura"/>
+                  <SummaryCard type={totK>0?"red":"green"} title="KALAN SİPARİŞ" val={totK} sub="Sipariş"/>
                 </>}
                 {tab==="ihracat"&&<>
                   <SummaryCard type="green"  title="ZAMANINDA" val={ihZ} sub="Sevkiyat"/>
-                  <SummaryCard type="yellow" title="RİSKLİ"    val={ihR} sub="Sevkiyat"/>
-                  <SummaryCard type="red"    title="GECİKTİ"   val={ihG} sub="Sevkiyat"/>
+                  <SummaryCard type="yellow" title="TERMİN İÇİNDE" val={ihR2} sub="Sevkiyat"/>
+                  <SummaryCard type="red"    title="GECİKEN / AŞAN" val={ihG} sub="Sevkiyat"/>
                 </>}
                 {tab==="malKabul"&&<>
                   <SummaryCard type="red"    title="BAŞLAMADI"  val={mkB} sub="İrsaliye"/>
@@ -411,60 +428,66 @@ export default function App(){
                 </>}
               </div>
 
-              {/* ── 10. TABLO ── */}
-              {tab==="malKabul"&&tableCard("📋","İRSALİYE LİSTESİ",mkRows.length,
-                ["İrsaliye No","Tedarikçi","Giriş Tarihi","Durum","Açıklama",""],
-                mkRows.map((r,i)=>(
+              {/* Tablolar */}
+              {tab==="yurtici"&&tableCard("📋","BEKLEYEN MÜŞTERİLER",fYi.length,
+                ["Depo","Müşteri","Çıkmama Sebebi","SKU","Adet","Not"],
+                fYi.length===0?(
+                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Bekleyen müşteri yok — tüm siparişler faturalandı ✅</td></tr>
+                ):fYi.map((r,i)=>(
                   <tr key={i}>
-                    <td style={{...td,fontWeight:900}}>{r.no}</td>
-                    <td style={td}>{r.tedarikci}</td>
-                    <td style={td}>{r.tarih}</td>
+                    <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
+                    <td style={{...td,fontWeight:800}}>{r.musteri}</td>
+                    <td style={td}>{r.sebep?<Badge type="yellow" label={r.sebep}/>:"—"}</td>
+                    <td style={td}>{r.sku||"—"}</td>
+                    <td style={td}>{r.adet?r.adet.toLocaleString("tr-TR"):"—"}</td>
+                    <td style={{...td,color:C.muted,fontWeight:600}}>{r.not||"—"}</td>
+                  </tr>
+                ))
+              )}
+              {tab==="ihracat"&&tableCard("🚢","İHRACAT SEVKİYAT LİSTESİ",fIh.length,
+                ["Depo","Müşteri","İlk Sipariş","Çıkış","SKU","Adet","Son Termin","Durum"],
+                fIh.length===0?(
+                  <tr><td colSpan={8} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Kayıt yok</td></tr>
+                ):fIh.map((r,i)=>(
+                  <tr key={i}>
+                    <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
+                    <td style={{...td,fontWeight:800}}>{r.musteri}</td>
+                    <td style={td}>{r.ilkTarih||"—"}</td>
+                    <td style={td}>{r.cikisTarih||"—"}</td>
+                    <td style={td}>{r.sku||"—"}</td>
+                    <td style={td}>{r.adet?r.adet.toLocaleString("tr-TR"):"—"}</td>
+                    <td style={{...td,fontWeight:900}}>{r.termin||"—"}</td>
                     <td style={td}><Badge type={r.type} label={r.durum}/></td>
-                    <td style={{...td,color:C.muted,fontWeight:600}}>{r.aciklama}</td>
-                    <td style={{...td,textAlign:"center",color:C.muted,cursor:"pointer",fontSize:17,width:40}}>⋮</td>
                   </tr>
                 ))
               )}
-              {tab==="yurtici"&&tableCard("📋","SİPARİŞ LİSTESİ",yiRows.length,
-                ["Belge No","Müşteri","Depo","Gönderi Tipi","Tarih",""],
-                yiRows.map((r,i)=>(
-                  <tr key={i}>
-                    <td style={{...td,fontWeight:900}}>{r.no}</td>
-                    <td style={td}>{r.musteri}</td>
-                    <td style={td}>{r.depo}</td>
-                    <td style={td}><Badge type={r.tip.includes("SEVKİYAT")?"green":r.tip.includes("CITY")||r.tip.includes("KARGO")?"yellow":r.tip.includes("SERVİS")?"green":"yellow"} label={r.tip}/></td>
-                    <td style={td}>{r.tarih}</td>
-                    <td style={{...td,textAlign:"center",color:C.muted,cursor:"pointer",fontSize:17,width:40}}>⋮</td>
-                  </tr>
-                ))
-              )}
-              {tab==="ihracat"&&tableCard("🚢","İHRACAT SEVKİYAT LİSTESİ",ihRows.length,
-                ["Sipariş No","Firma","Sipariş Tarihi","Termin","Durum",""],
-                ihRows.map((r,i)=>(
+              {tab==="malKabul"&&tableCard("📦","İRSALİYE LİSTESİ",fMk.length,
+                ["Belge No","Firma","Depo","Tarih","Adet","Durum"],
+                fMk.length===0?(
+                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Kayıt yok</td></tr>
+                ):fMk.map((r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.firma}</td>
-                    <td style={td}>{r.siparisTarihi}</td>
-                    <td style={{...td,fontWeight:900,color:r.type==="red"?C.red:r.type==="yellow"?"#B45309":"#15803D"}}>{r.termin}</td>
+                    <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
+                    <td style={td}>{r.tarih}</td>
+                    <td style={td}>{r.adet.toLocaleString("tr-TR")}</td>
                     <td style={td}><Badge type={r.type} label={r.durum}/></td>
-                    <td style={{...td,textAlign:"center",color:C.muted,cursor:"pointer",fontSize:17,width:40}}>⋮</td>
                   </tr>
                 ))
               )}
             </div>
 
-            {/* SAĞ KOLON */}
+            {/* SAĞ */}
             <div>
-              {tab==="yurtici"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
-                ["Toplam Sipariş",parseInt(yiSiparis)||0,"#fff"],
-                ["Kesilen Fatura",parseInt(yiFatura)||0,"#86EFAC"],
-                ["Kalan Sipariş",yiKalan,yiKalan>0?"#FCA5A5":"#86EFAC"],
-                [String(yiT1[0]),yiT1[1] as number,"#FCD34D"],
-                [String(yiT2[0]),yiT2[1] as number,"#FCD34D"]]}/>}
-              {tab==="ihracat"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
-                ["Toplam Sevkiyat",ihRows.length,"#fff"],["Zamanında",ihZ,"#86EFAC"],["Riskli",ihR,"#FCD34D"],["Gecikti",ihG,"#FCA5A5"]]}/>}
-              {tab==="malKabul"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
-                ["Toplam İrsaliye",mkRows.length,"#fff"],["Başlamadı",mkB,"#FCA5A5"],["İşlemde",mkI,"#FCD34D"],["Tamamlandı",mkT,"#86EFAC"]]}/>}
+              {tab==="yurtici"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
+                ["Toplam Sipariş",totS,"#fff"],["Kesilen Fatura",totF,"#86EFAC"],["Kalan Sipariş",totK,totK>0?"#FCA5A5":"#86EFAC"],
+                ...(depoFiltre==="Tümü"?depolar.map(d=>[`— ${d}`,`${yiTot[d]?.siparis||0} / ${yiTot[d]?.fatura||0}`,"#FCD34D"] as [string,string,string]):[])
+              ]}/>}
+              {tab==="ihracat"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
+                ["Toplam Sevkiyat",fIh.length,"#fff"],["Zamanında",ihZ,"#86EFAC"],["Termin İçinde",ihR2,"#FCD34D"],["Geciken",ihG,"#FCA5A5"]]}/>}
+              {tab==="malKabul"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
+                ["Toplam İrsaliye",fMk.length,"#fff"],["Başlamadı",mkB,"#FCA5A5"],["İşlemde",mkI,"#FCD34D"],["Tamamlandı",mkT,"#86EFAC"]]}/>}
               <ContactCard/>
             </div>
           </div>
