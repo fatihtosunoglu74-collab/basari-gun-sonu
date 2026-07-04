@@ -33,18 +33,16 @@ function terminType(tarihStr:string,sku:number):{durum:string;type:string}{
 }
 
 // ─── Tipler & Demo Veri ───────────────────────────────────────────────────────
-interface YIRow{no:string;musteri:string;tarih:string;siparis:number;fatura:number;kalan:number;}
+interface YIRow{no:string;musteri:string;depo:string;tip:string;tarih:string;}
 interface IHRow{no:string;firma:string;ulke:string;termin:string;adet:number;durum:string;type:string;}
 interface MKRow{no:string;tedarikci:string;tarih:string;durum:string;type:string;aciklama:string;}
 type Tab="yurtici"|"ihracat"|"malKabul";
 type US="idle"|"loading"|"ok"|"err";
 
 const DEF_YI:YIRow[]=[
-  {no:"YT-2026-001",musteri:"Başarı Ankara",   tarih:"04.07.2026 08:30",siparis:240,fatura:210,kalan:30},
-  {no:"YT-2026-002",musteri:"İstanbul Avrupa",  tarih:"04.07.2026 09:15",siparis:190,fatura:190,kalan:0},
-  {no:"YT-2026-003",musteri:"Ege Bölge",        tarih:"04.07.2026 10:45",siparis:160,fatura:145,kalan:15},
-  {no:"YT-2026-004",musteri:"Kartepe Sevkiyat", tarih:"04.07.2026 11:20",siparis:89, fatura:89, kalan:0},
-  {no:"YT-2026-005",musteri:"GooN Tech Ankara", tarih:"04.07.2026 13:10",siparis:130,fatura:0,  kalan:130},
+  {no:"B4B-234558",musteri:"Oto Kerem - Bekir Yılmaz",depo:"TEM.34",tip:"CITY LOJİSTİC", tarih:"03.07.2026"},
+  {no:"B4B-234560",musteri:"Kasırga Otomotiv",        depo:"TEM.34",tip:"SEVKİYAT ARACI",tarih:"03.07.2026"},
+  {no:"B4B-234559",musteri:"Aluçlar Otomotiv",        depo:"TEM.34",tip:"SEVKİYAT ARACI",tarih:"03.07.2026"},
 ];
 const DEF_IH:IHRow[]=[
   {no:"IH-2026-101",firma:"Auto Balkan",  ulke:"Bulgaristan",termin:"04.07.2026 17:00",adet:420,durum:"ZAMANINDA",type:"green"},
@@ -205,14 +203,19 @@ export default function App(){
         }
         setMkRows(rows);setMsgU(`${rows.length} irsaliye yüklendi`);
       } else if(tab==="yurtici"){
-        const iMus=col("Müşteri","MÜŞTERİ"),iBno=col("Belge No","BELGE"),iTar=col("Tarih","TARİH"),iAdt=col("Adet","ADET"),iKar=col("Karşılan");
+        // Zeus Yurtiçi formatı: Firma | Depo | BelgeNo | Cari | Gönderi Tipi | Tarih
+        const iCari=col("Cari"),iMus=col("Müşteri","MÜŞTERİ"),iBno=col("BelgeNo","Belge No"),iDep=col("Depo"),iTip=col("Gönderi Tipi","Gönderi"),iTar=col("Tarih","TARİH");
+        const iAd=iCari>=0?iCari:(iMus>=0?iMus:3);
         const rows:YIRow[]=[];
         for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const mus=sv(iMus>=0?r[iMus]:r[3]);if(!mus)continue;
-          const adet=nn(iAdt>=0?r[iAdt]:r[6]);
-          const oran=Math.min(nn(iKar>=0?r[iKar]:r[10]),100);
-          const fat=Math.round(adet*oran/100);
-          rows.push({no:sv(iBno>=0?r[iBno]:r[1])||("YT-"+uid()),musteri:mus,tarih:xlDT(iTar>=0?r[iTar]:r[2]),siparis:adet,fatura:fat,kalan:adet-fat});
+          const r=raw[i];const mus=sv(r[iAd]);if(!mus)continue;
+          rows.push({
+            no:sv(iBno>=0?r[iBno]:r[2])||("B4B-"+uid()),
+            musteri:mus,
+            depo:sv(iDep>=0?r[iDep]:r[1])||"TEM.34",
+            tip:sv(iTip>=0?r[iTip]:r[4])||"—",
+            tarih:xlDT(iTar>=0?r[iTar]:r[5]).split(" ")[0],
+          });
         }
         setYiRows(rows);setMsgU(`${rows.length} sipariş yüklendi`);
       } else {
@@ -244,7 +247,11 @@ export default function App(){
   };
 
   // Özetler
-  const yiB=yiRows.filter(r=>r.fatura===0).length, yiD=yiRows.filter(r=>r.fatura>0&&r.kalan>0).length, yiT=yiRows.filter(r=>r.kalan===0).length;
+  // Yurtiçi: gönderi tipine göre grup — en çok kullanılan 3 tip
+  const tipMap:Record<string,number>={};
+  yiRows.forEach(r=>{const k=r.tip||"DİĞER";tipMap[k]=(tipMap[k]||0)+1;});
+  const tipTop=Object.entries(tipMap).sort((a,b)=>b[1]-a[1]);
+  const yiT1=tipTop[0]??["—",0], yiT2=tipTop[1]??["—",0], yiT3Rest=tipTop.slice(2).reduce((s,[,v])=>s+v,0);
   const ihZ=ihRows.filter(r=>r.type==="green").length, ihR=ihRows.filter(r=>r.type==="yellow").length, ihG=ihRows.filter(r=>r.type==="red").length;
   const mkB=mkRows.filter(r=>r.type==="red").length, mkI=mkRows.filter(r=>r.type==="yellow").length, mkT=mkRows.filter(r=>r.type==="green").length;
 
@@ -363,9 +370,9 @@ export default function App(){
               {/* ── 8. ÖZET KARTLARI ── */}
               <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:16,marginBottom:20}}>
                 {tab==="yurtici"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş"/>
-                  <SummaryCard type="yellow" title="DEVAM"      val={yiD} sub="Sipariş"/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={yiT} sub="Sipariş"/>
+                  <SummaryCard type="green"  title="TOPLAM SİPARİŞ" val={yiRows.length} sub="Sipariş"/>
+                  <SummaryCard type="yellow" title={String(yiT1[0]).toUpperCase()} val={yiT1[1] as number} sub="Gönderi"/>
+                  <SummaryCard type="red"    title={String(yiT2[0]).toUpperCase()} val={yiT2[1] as number} sub="Gönderi"/>
                 </>}
                 {tab==="ihracat"&&<>
                   <SummaryCard type="green"  title="ZAMANINDA" val={ihZ} sub="Sevkiyat"/>
@@ -394,15 +401,14 @@ export default function App(){
                 ))
               )}
               {tab==="yurtici"&&tableCard("📋","SİPARİŞ LİSTESİ",yiRows.length,
-                ["Sipariş No","Müşteri","Giriş Tarihi","Sipariş","Faturalanan","Kalan",""],
+                ["Belge No","Müşteri","Depo","Gönderi Tipi","Tarih",""],
                 yiRows.map((r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.musteri}</td>
+                    <td style={td}>{r.depo}</td>
+                    <td style={td}><Badge type={r.tip.includes("SEVKİYAT")?"green":r.tip.includes("CITY")||r.tip.includes("KARGO")?"yellow":r.tip.includes("SERVİS")?"green":"yellow"} label={r.tip}/></td>
                     <td style={td}>{r.tarih}</td>
-                    <td style={td}>{r.siparis.toLocaleString("tr-TR")}</td>
-                    <td style={td}>{r.fatura.toLocaleString("tr-TR")}</td>
-                    <td style={{...td,fontWeight:900,color:r.kalan>0?C.red:"#15803D"}}>{r.kalan.toLocaleString("tr-TR")}</td>
                     <td style={{...td,textAlign:"center",color:C.muted,cursor:"pointer",fontSize:17,width:40}}>⋮</td>
                   </tr>
                 ))
@@ -426,7 +432,10 @@ export default function App(){
             {/* SAĞ KOLON */}
             <div>
               {tab==="yurtici"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
-                ["Toplam Sipariş",yiRows.length,"#fff"],["Başlamadı",yiB,"#FCA5A5"],["Devam",yiD,"#FCD34D"],["Tamamlandı",yiT,"#86EFAC"]]}/>}
+                ["Toplam Sipariş",yiRows.length,"#fff"],
+                [String(yiT1[0]),yiT1[1] as number,"#86EFAC"],
+                [String(yiT2[0]),yiT2[1] as number,"#FCD34D"],
+                ["Diğer",yiT3Rest,"#FCA5A5"]]}/>}
               {tab==="ihracat"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
                 ["Toplam Sevkiyat",ihRows.length,"#fff"],["Zamanında",ihZ,"#86EFAC"],["Riskli",ihR,"#FCD34D"],["Gecikti",ihG,"#FCA5A5"]]}/>}
               {tab==="malKabul"&&<DayEndSummary title="GÜN SONU ÖZETİ" rows={[
