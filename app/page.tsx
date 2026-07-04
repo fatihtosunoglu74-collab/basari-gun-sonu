@@ -1,453 +1,522 @@
-// v20260703-1930
 "use client";
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
-const SB_URL="https://dqoreukmpkxmdputjigy.supabase.co";
-const SB_KEY="sb_publishable_gKwtDDLun7O0UybI4R71cA_xMDT2DX8";
-const TABLE="gun_sonu_raporlar";
+// ─── Supabase ─────────────────────────────────────────────────────────────────
+const SB_URL = "https://dqoreukmpkxmdputjigy.supabase.co";
+const SB_KEY = "sb_publishable_gKwtDDLun7O0UybI4R71cA_xMDT2DX8";
+const TABLE  = "gun_sonu_raporlar";
 
-async function sbSave(p:object):Promise<string|null>{try{const r=await fetch(`${SB_URL}/rest/v1/${TABLE}`,{method:"POST",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`,Prefer:"return=representation"},body:JSON.stringify(p)});const d=await r.json();return d[0]?.id??null;}catch{return null;}}
-async function sbUpdate(id:string,p:object):Promise<void>{try{await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${id}`,{method:"PATCH",headers:{"Content-Type":"application/json",apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`},body:JSON.stringify(p)});}catch{}}
-async function sbLoad(id:string):Promise<any>{try{const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${id}&select=*`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});const d=await r.json();return d[0]??null;}catch{return null;}}
-
-interface YIRow{id:string;musteri:string;il:string;adet:string;cesit:string;kulvar:string;sevkSekli:string;karsilanmaOran:string;}
-interface IHRow{id:string;musteri:string;ulke:string;ilkTarih:string;cikisTarih:string;sebep:string;sku:string;adet:string;}
-interface MKRow{id:string;firma:string;depo:string;belgeNo:string;tarih:string;adet:string;cesit:string;durum:string;}
-type Tab="yurtici"|"ihracat"|"malkabul";
-type US="idle"|"loading"|"ok"|"err";
-
-const uid=()=>Math.random().toString(36).slice(2,10);
-const sv=(v:any)=>String(v??"").trim();
-const ns=(v:any)=>{const n=parseFloat(sv(v));return isNaN(n)?"":String(Math.round(n));};
-const fmtDate=(d:string)=>d?new Date(d).toLocaleDateString("tr-TR"):"—";
-const fmtN=(v:string|number)=>{const n=parseInt(String(v));return isNaN(n)?"0":n.toLocaleString("tr-TR");};
-const todayStr=()=>new Date().toISOString().split("T")[0];
-function xlDate(v:any):string{if(!v&&v!==0)return"";const s=Math.floor(typeof v==="number"?v:parseFloat(sv(v)));if(isNaN(s)||s<1)return"";const d=new Date(Math.round((s-25569)*86400*1000));return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;}
-function parseTrDate(v:string):string{const m=v?.match(/(\d{2})\.(\d{2})\.(\d{4})/);return m?`${m[3]}-${m[2]}-${m[1]}`:todayStr();}
-function calcTermin(sku:string,sebep=""):number{if(sebep.toUpperCase().includes("ELLEÇLEME"))return 7;const n=parseInt(sku)||0;if(n<=50)return 1;if(n<=100)return 2;if(n<=250)return 4;return 7;}
-function calcStatus(row:Partial<IHRow>){
-  const{ilkTarih,cikisTarih,sebep="",sku}=row;
-  if(!ilkTarih||!sku)return null;
-  const g=calcTermin(sku,sebep);
-  const ilk=new Date(ilkTarih),son=new Date(ilk);son.setDate(ilk.getDate()+g);
-  const today=new Date();today.setHours(0,0,0,0);
-  const isG=sebep==="GÖNDERİLDİ"||!!cikisTarih;
-  const cikis=cikisTarih?new Date(cikisTarih):today;
-  if(isG)return cikis<=son?{d:"✅ ZAMANINDA ÇIKTI",c:"#16a34a"}:{d:"🔴 GEÇ ÇIKTI",c:"#dc2626"};
-  return today<=son?{d:"🟡 TERMİN İÇİNDE",c:"#ca8a04"}:{d:"🔴 TERMİN AŞTI — ACİL",c:"#dc2626"};
+async function sbSave(p: object): Promise<string | null> {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/${TABLE}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: "return=representation" },
+      body: JSON.stringify(p),
+    });
+    const d = await r.json();
+    return d[0]?.id ?? null;
+  } catch { return null; }
+}
+async function sbUpdate(id: string, p: object) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+      body: JSON.stringify(p),
+    });
+  } catch {}
+}
+async function sbLoad(id: string) {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/${TABLE}?id=eq.${id}&select=*`, {
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    });
+    const d = await r.json();
+    return d[0] ?? null;
+  } catch { return null; }
 }
 
-const C={navy:"#0B2F78",navyDk:"#082A5B",pageBg:"#F8FAFD",white:"#FFFFFF",border:"#E3EAF3",green:"#22C55E",greenDk:"#16A34A",text:"#102A43",sub:"#6B7C93",amber:"#D68A1F",sh:"0 4px 20px rgba(16,42,67,0.07)"};
+// ─── Yardımcılar ──────────────────────────────────────────────────────────────
+const sv  = (v: any) => String(v ?? "").trim();
+const ns  = (v: any) => { const n = parseFloat(sv(v)); return isNaN(n) ? 0 : Math.round(n); };
+const uid = () => Math.random().toString(36).slice(2, 10);
+const todayStr = () => new Date().toISOString().split("T")[0];
 
-// Durum badge
-function StatusBadge({label,color}:{label:string;color:string}){
-  return(
-    <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 12px",borderRadius:20,fontSize:13,fontWeight:800,background:color+"20",color:color,border:`1px solid ${color}40`}}>
-      {label}
-    </span>
-  );
+function xlDate(v: any): string {
+  if (!v && v !== 0) return "";
+  const s = Math.floor(typeof v === "number" ? v : parseFloat(sv(v)));
+  if (isNaN(s) || s < 1) return "";
+  const d = new Date(Math.round((s - 25569) * 86400 * 1000));
+  return d.toLocaleDateString("tr-TR");
+}
+function parseTrDate(v: string): string {
+  const m = v?.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : todayStr();
+}
+function terminDurum(ilkTarih: string, sku: number): { durum: string; type: string } {
+  if (!ilkTarih) return { durum: "BELİRSİZ", type: "yellow" };
+  const gun = sku <= 50 ? 1 : sku <= 100 ? 2 : sku <= 250 ? 4 : 7;
+  const son = new Date(ilkTarih); son.setDate(son.getDate() + gun);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (today <= son) return { durum: "ZAMANINDA", type: "green" };
+  return { durum: "GECİKTİ", type: "red" };
 }
 
-// Küçük etiket
-function Tag({l,bg,c}:{l:string;bg:string;c:string}){
-  return <span style={{display:"inline-block",padding:"2px 8px",borderRadius:5,fontSize:12,fontWeight:700,background:bg,color:c,marginRight:4,marginBottom:3}}>{l}</span>;
-}
+// ─── Tipler ───────────────────────────────────────────────────────────────────
+interface YurticiRow { no: string; musteri: string; siparis: number; fatura: number; kalan: number; durum: string; }
+interface IhracatRow { firma: string; ulke: string; termin: string; adet: number; durum: string; type: string; }
+interface MalKabulRow { irsaliye: string; tedarikci: string; adet: number; lokasyon: string; durum: string; type: string; }
 
-// Upload şeridi — yüklenmeden önce dosya seç, yüklendikten sonra tek ince satır
-function UploadBar({icon,label,st,msg,onPick}:{icon:string;label:string;st:US;msg:string;onPick:()=>void}){
-  if(st==="ok"){
-    return(
-      <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:9,cursor:"pointer"}}>
-        <span style={{fontSize:15}}>✅</span>
-        <span style={{fontSize:13,fontWeight:700,color:"#15803d",flex:1}}>{msg} yüklendi</span>
-        <span style={{fontSize:12,color:C.sub}}>Değiştir →</span>
-      </div>
-    );
-  }
-  if(st==="err"){
-    return(
-      <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"#fef2f2",border:"1.5px solid #fca5a5",borderRadius:9,cursor:"pointer"}}>
-        <span style={{fontSize:15}}>❌</span>
-        <span style={{fontSize:13,fontWeight:700,color:"#dc2626",flex:1}}>{msg}</span>
-        <span style={{fontSize:12,color:C.sub}}>Tekrar dene →</span>
-      </div>
-    );
-  }
-  if(st==="loading"){
-    return(
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"#f8fafd",border:`1.5px dashed ${C.border}`,borderRadius:9}}>
-        <span style={{fontSize:15}}>⏳</span>
-        <span style={{fontSize:13,fontWeight:700,color:C.sub}}>Yükleniyor...</span>
-      </div>
-    );
-  }
-  return(
-    <div onClick={onPick} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#f8fafd",border:`1.5px dashed ${C.border}`,borderRadius:9,cursor:"pointer",transition:"border-color .15s"}}>
-      <span style={{fontSize:20}}>{icon}</span>
-      <div style={{flex:1}}>
-        <span style={{fontSize:14,fontWeight:700,color:C.text}}>{label}</span>
-        <span style={{fontSize:12,color:C.sub,marginLeft:8}}>.xlsx / .xls</span>
-      </div>
-      <button onClick={e=>{e.stopPropagation();onPick();}} style={{height:30,padding:"0 14px",border:`1px solid ${C.border}`,borderRadius:7,background:C.white,color:C.navy,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-        ☁️ Dosya Seç
-      </button>
-    </div>
-  );
-}
-
-// Bildirimler
-const NOTIFS=[
-  {id:1,icon:"📋",text:"Yurtiçi İş Talepleri bekleniyor",time:"Bugün",unread:true},
-  {id:2,icon:"✈️",text:"İhracat: 3 sipariş termin yaklaşıyor",time:"Bugün",unread:true},
-  {id:3,icon:"📦",text:"Mal Kabul: 2 belge işlemde",time:"Dün",unread:false},
+// ─── Varsayılan (demo) veriler ────────────────────────────────────────────────
+const DEF_YI: YurticiRow[] = [
+  { no: "YT-240701", musteri: "Başarı Ankara",      siparis: 128, fatura: 120, kalan: 8,  durum: "Kısmi"      },
+  { no: "YT-240702", musteri: "İstanbul Avrupa",     siparis: 214, fatura: 214, kalan: 0,  durum: "Tamamlandı" },
+  { no: "YT-240703", musteri: "Ege Bölge",           siparis: 176, fatura: 149, kalan: 27, durum: "Devam"      },
+  { no: "YT-240704", musteri: "Kartepe Sevkiyat",    siparis: 89,  fatura: 66,  kalan: 23, durum: "Devam"      },
+];
+const DEF_IH: IhracatRow[] = [
+  { firma: "Global Auto Parts", ulke: "Almanya",    termin: "Bugün 17:00", adet: 420, durum: "ZAMANINDA", type: "green"  },
+  { firma: "Balkan Motors",     ulke: "Bulgaristan", termin: "Bugün 18:30", adet: 275, durum: "RİSKLİ",   type: "yellow" },
+  { firma: "MENA Spare",        ulke: "BAE",         termin: "Bugün 16:00", adet: 610, durum: "GECİKTİ",  type: "red"    },
+];
+const DEF_MK: MalKabulRow[] = [
+  { irsaliye: "IRS-2026-1842", tedarikci: "Martaş Otomotiv",      adet: 1280, lokasyon: "TEM34",     durum: "BAŞLAMADI",  type: "red"    },
+  { irsaliye: "IRS-2026-1843", tedarikci: "Arıcıoğlu Otomotiv",   adet: 740,  lokasyon: "Kartepe",   durum: "İŞLEMDE",    type: "yellow" },
+  { irsaliye: "IRS-2026-1844", tedarikci: "Başarı İthalat",       adet: 960,  lokasyon: "İnovasyon", durum: "TAMAMLANDI", type: "green"  },
 ];
 
-export default function App(){
-  const [tab,setTab]=useState<Tab>("yurtici");
-  const [yiSiparis,setYiSiparis]=useState("");
-  const [yiFatura,setYiFatura]=useState("");
-  const [yiRows,setYiRows]=useState<YIRow[]>([]);
-  const [ihRows,setIhRows]=useState<IHRow[]>([]);
-  const [mkRows,setMkRows]=useState<MKRow[]>([]);
-  const [stYi,setStYi]=useState<US>("idle");const [msgYi,setMsgYi]=useState("");
-  const [stIh,setStIh]=useState<US>("idle");const [msgIh,setMsgIh]=useState("");
-  const [stIr,setStIr]=useState<US>("idle");const [msgIr,setMsgIr]=useState("");
-  const refYi=useRef<HTMLInputElement>(null);
-  const refIh=useRef<HTMLInputElement>(null);
-  const refIr=useRef<HTMLInputElement>(null);
-  const [raporId,setRaporId]=useState<string|null>(null);
-  const [saving,setSaving]=useState(false);
-  const [shareUrl,setShareUrl]=useState("");
-  const [copied,setCopied]=useState(false);
-  const [isView,setIsView]=useState(false);
-  const [lastRefresh,setLastRefresh]=useState<Date|null>(null);
-  const [showNotif,setShowNotif]=useState(false);
-  const notifRef=useRef<HTMLDivElement>(null);
+// ─── Ana Bileşen ──────────────────────────────────────────────────────────────
+export default function GunSonuIzlemeDashboard() {
+  const [activeTab, setActiveTab]   = useState("yurtici");
+  const [yurticiOrders, setYurticiOrders] = useState<YurticiRow[]>(DEF_YI);
+  const [ihracatTerminleri, setIhracatTerminleri] = useState<IhracatRow[]>(DEF_IH);
+  const [malKabulCards, setMalKabulCards] = useState<MalKabulRow[]>(DEF_MK);
+  const [stYi, setStYi] = useState<"idle"|"loading"|"ok"|"err">("idle");
+  const [stIh, setStIh] = useState<"idle"|"loading"|"ok"|"err">("idle");
+  const [stIr, setStIr] = useState<"idle"|"loading"|"ok"|"err">("idle");
+  const [msgYi, setMsgYi] = useState("");
+  const [msgIh, setMsgIh] = useState("");
+  const [msgIr, setMsgIr] = useState("");
+  const refYi = useRef<HTMLInputElement>(null);
+  const refIh = useRef<HTMLInputElement>(null);
+  const refIr = useRef<HTMLInputElement>(null);
+  const [raporId, setRaporId] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isView, setIsView] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  const yiKalan=(parseInt(yiSiparis)||0)-(parseInt(yiFatura)||0);
-  const longDate=new Date().toLocaleDateString("tr-TR",{day:"numeric",month:"long",year:"numeric"});
+  const today = new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" });
 
-  useEffect(()=>{
-    function h(e:MouseEvent){if(notifRef.current&&!notifRef.current.contains(e.target as Node))setShowNotif(false);}
-    document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
-  },[]);
-
-  useEffect(()=>{
-    const id=new URLSearchParams(window.location.search).get("rapor");
-    if(id){setRaporId(id);setIsView(true);loadReport(id);const iv=setInterval(()=>loadReport(id).then(()=>setLastRefresh(new Date())),30000);return()=>clearInterval(iv);}
+  // URL'de ?rapor= varsa yükle
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("rapor");
+    if (id) {
+      setRaporId(id); setIsView(true); loadReport(id);
+      const iv = setInterval(() => loadReport(id).then(() => setLastRefresh(new Date())), 30000);
+      return () => clearInterval(iv);
+    }
   // eslint-disable-next-line
-  },[]);
+  }, []);
 
-  async function loadReport(id:string){const d=await sbLoad(id);if(d){setYiSiparis(String(d.yurtici_siparis??0));setYiFatura(String(d.yurtici_fatura??0));setYiRows(d.yurtici_rows??[]);setIhRows(d.ihracat_rows??[]);setMkRows(d.malkabul_rows??[]);setLastRefresh(new Date());}}
-
-  async function handleSave(){
-    setSaving(true);
-    const p={tarih:todayStr(),yurtici_siparis:parseInt(yiSiparis)||0,yurtici_fatura:parseInt(yiFatura)||0,yurtici_rows:yiRows,ihracat_rows:ihRows,malkabul_rows:mkRows};
-    let id=raporId;
-    if(id){await sbUpdate(id,p);}
-    else{id=await sbSave(p);if(id){setRaporId(id);const u=`${window.location.origin}?rapor=${id}`;setShareUrl(u);window.history.pushState({},"",`?rapor=${id}`);}}
-    setSaving(false);
-    if(id){const u=shareUrl||`${window.location.origin}?rapor=${id}`;window.open(`https://wa.me/?text=${encodeURIComponent(`📋 *GÜN SONU RAPORU — ${new Date().toLocaleDateString("tr-TR")}*\n\nCanlı rapor:\n${u}`)}`,"_blank");}
+  async function loadReport(id: string) {
+    const d = await sbLoad(id);
+    if (d) {
+      if (d.yurtici_rows?.length)   setYurticiOrders(d.yurtici_rows);
+      if (d.ihracat_rows?.length)   setIhracatTerminleri(d.ihracat_rows);
+      if (d.malkabul_rows?.length)  setMalKabulCards(d.malkabul_rows);
+      setLastRefresh(new Date());
+    }
   }
 
-  async function parseExcel(file:File,mode:"yi"|"ih"|"ir"){
-    const setS=mode==="yi"?setStYi:mode==="ih"?setStIh:setStIr;
-    const setM=mode==="yi"?setMsgYi:mode==="ih"?setMsgIh:setMsgIr;
+  // ─── Excel Parse ──────────────────────────────────────────────────────────
+  async function parseExcel(file: File, mode: "yi" | "ih" | "ir") {
+    const setS = mode === "yi" ? setStYi : mode === "ih" ? setStIh : setStIr;
+    const setM = mode === "yi" ? setMsgYi : mode === "ih" ? setMsgIh : setMsgIr;
     setS("loading");
-    try{
-      const XLSX=await import("xlsx");
-      const wb=XLSX.read(await file.arrayBuffer());
-      const ws=wb.Sheets["data"]??wb.Sheets[wb.SheetNames[0]];
-      const raw:any[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
-      const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Müşteri"||sv(c)==="Firma"||sv(c)==="FİRMA"||sv(c).includes("MÜŞTERİ")));
-      const hRow=hi>=0?raw[hi]:raw[0];
-      const col=(k:string,k2=""):number=>hRow.findIndex((c:any)=>sv(c)===k||sv(c).includes(k)||(k2&&sv(c).includes(k2)));
-      if(mode==="ir"){
-        const iCnm=col("Cari İsmi"),iDep=col("Depo"),iBno=col("BelgeNo"),iTar=col("Tarih"),iAdt=col("Adet"),iCes=col("Çeşit"),iDur=col("Durum");
-        const rows:MKRow[]=[];
-        for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const fir=sv(iCnm>=0?r[iCnm]:r[6]);if(!fir)continue;
-          const raw2=sv(iDur>=0?r[iDur]:r[9]);
-          rows.push({id:uid(),firma:fir,depo:sv(iDep>=0?r[iDep]:r[1])||"TEM.34",belgeNo:sv(iBno>=0?r[iBno]:r[2]),tarih:xlDate(iTar>=0?r[iTar]:r[4])||todayStr(),adet:ns(iAdt>=0?r[iAdt]:r[7]),cesit:ns(iCes>=0?r[iCes]:r[8]),durum:raw2==="Başlamadı"?"BAŞLAMADI":raw2==="İşlemde"?"İŞLEMDE":raw2==="Tamamlandı"?"TAMAMLANDI":raw2||"BAŞLAMADI"});
+    try {
+      const XLSX = await import("xlsx");
+      const wb   = XLSX.read(await file.arrayBuffer());
+      const ws   = wb.Sheets["data"] ?? wb.Sheets[wb.SheetNames[0]];
+      const raw: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+      const hi   = raw.findIndex(r => r.some((c: any) => sv(c) === "Müşteri" || sv(c) === "Firma" || sv(c).includes("MÜŞTERİ") || sv(c) === "FİRMA"));
+      const hRow = hi >= 0 ? raw[hi] : raw[0];
+      const col  = (k: string, k2 = "") => hRow.findIndex((c: any) => sv(c) === k || sv(c).includes(k) || (k2 && sv(c).includes(k2)));
+
+      if (mode === "yi") {
+        // Yurtiçi İş Talepleri
+        const iMus = col("Müşteri", "MÜŞTERİ"), iBno = col("Belge No", "BELGE"), iAdt = col("Adet", "ADET"), iCes = col("Çeşit", "SKU"), iKar = col("Karşılan");
+        const rows: YurticiRow[] = [];
+        for (let i = (hi >= 0 ? hi + 1 : 1); i < raw.length; i++) {
+          const r = raw[i]; const mus = sv(iMus >= 0 ? r[iMus] : r[3]); if (!mus) continue;
+          const adet = ns(iAdt >= 0 ? r[iAdt] : r[6]);
+          const oran = ns(iKar >= 0 ? r[iKar] : r[10]);
+          const fatura = Math.round(adet * Math.min(oran, 100) / 100);
+          const kalan  = adet - fatura;
+          const durum  = kalan === 0 ? "Tamamlandı" : kalan < adet ? "Kısmi" : "Devam";
+          rows.push({ no: sv(iBno >= 0 ? r[iBno] : r[1]) || uid(), musteri: mus, siparis: adet, fatura, kalan, durum });
         }
-        setMkRows(rows);const tot=rows.reduce((s,r)=>s+(parseInt(r.adet)||0),0);setM(`${rows.length} belge · ${tot.toLocaleString("tr-TR")} adet`);setTab("malkabul");
-      } else if(mode==="yi"){
-        const iMus=col("Müşteri","MÜŞTERİ"),iIl=col("İl"),iAdt=col("Adet","ADET"),iCes=col("Çeşit","SKU"),iKul=col("Kulvar"),iSev=col("Sevk"),iKar=col("Karşılan");
-        const rows:YIRow[]=[];
-        for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const mus=sv(iMus>=0?r[iMus]:r[3]);if(!mus)continue;
-          rows.push({id:uid(),musteri:mus,il:sv(iIl>=0?r[iIl]:r[4]),adet:ns(iAdt>=0?r[iAdt]:r[6]),cesit:ns(iCes>=0?r[iCes]:r[7]),kulvar:sv(iKul>=0?r[iKul]:r[8]),sevkSekli:sv(iSev>=0?r[iSev]:r[9]),karsilanmaOran:sv(iKar>=0?r[iKar]:r[10])});
+        setYurticiOrders(rows);
+        const totS = rows.reduce((s, r) => s + r.siparis, 0);
+        const totF = rows.reduce((s, r) => s + r.fatura, 0);
+        setM(`${rows.length} satır · ${totS.toLocaleString("tr-TR")} sipariş`);
+        setTab("yurtici");
+      } else if (mode === "ih") {
+        // İhracat İş Talepleri
+        const iMus = col("Müşteri", "MÜŞTERİ"), iIl = col("İl", "ÜLKE"), iTar = col("Tarih", "TARİH"), iAdt = col("Adet", "ADET"), iCes = col("Çeşit", "SKU");
+        const rows: IhracatRow[] = [];
+        for (let i = (hi >= 0 ? hi + 1 : 1); i < raw.length; i++) {
+          const r = raw[i]; const mus = sv(iMus >= 0 ? r[iMus] : r[3]); if (!mus) continue;
+          const tarihRaw = sv(iTar >= 0 ? r[iTar] : r[2]);
+          const tarih = tarihRaw.includes(".") ? parseTrDate(tarihRaw) : (typeof r[iTar >= 0 ? iTar : 2] === "number" ? xlDate(r[iTar >= 0 ? iTar : 2]) : todayStr());
+          const sku  = ns(iCes >= 0 ? r[iCes] : r[7]);
+          const adet = ns(iAdt >= 0 ? r[iAdt] : r[6]);
+          const { durum, type } = terminDurum(tarih, sku);
+          const ulke = sv(iIl >= 0 ? r[iIl] : r[4]);
+          rows.push({ firma: mus, ulke: ulke || "—", termin: new Date(tarih).toLocaleDateString("tr-TR"), adet, durum, type });
         }
-        setYiRows(rows);setYiFatura(String(rows.length));setM(`${rows.length} sipariş`);setTab("yurtici");
+        setIhracatTerminleri(rows);
+        setM(`${rows.length} sipariş`);
+        setActiveTab("ihracat");
       } else {
-        const iMus=col("Müşteri","MÜŞTERİ"),iIl=col("İl","ÜLKE"),iTar=col("Tarih","TARİH"),iAdt=col("Adet","ADET"),iCes=col("Çeşit","SKU");
-        const rows:IHRow[]=[];
-        for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
-          const r=raw[i];const mus=sv(iMus>=0?r[iMus]:r[3]);if(!mus)continue;
-          rows.push({id:uid(),musteri:mus,ulke:sv(iIl>=0?r[iIl]:r[4]),ilkTarih:parseTrDate(sv(iTar>=0?r[iTar]:r[2])),cikisTarih:"",sebep:"",sku:ns(iCes>=0?r[iCes]:r[7]),adet:ns(iAdt>=0?r[iAdt]:r[6])});
+        // İrsaliye (Mal Kabul)
+        const iCnm = col("Cari İsmi"), iDep = col("Depo"), iBno = col("BelgeNo"), iAdt = col("Adet"), iCes = col("Çeşit"), iDur = col("Durum");
+        const rows: MalKabulRow[] = [];
+        for (let i = (hi >= 0 ? hi + 1 : 1); i < raw.length; i++) {
+          const r = raw[i]; const fir = sv(iCnm >= 0 ? r[iCnm] : r[6]); if (!fir) continue;
+          const raw2 = sv(iDur >= 0 ? r[iDur] : r[9]);
+          const durum = raw2 === "Başlamadı" ? "BAŞLAMADI" : raw2 === "İşlemde" ? "İŞLEMDE" : raw2 === "Tamamlandı" ? "TAMAMLANDI" : raw2 || "BAŞLAMADI";
+          const type  = durum === "TAMAMLANDI" ? "green" : durum === "İŞLEMDE" ? "yellow" : "red";
+          rows.push({ irsaliye: sv(iBno >= 0 ? r[iBno] : r[2]) || uid(), tedarikci: fir, adet: ns(iAdt >= 0 ? r[iAdt] : r[7]), lokasyon: sv(iDep >= 0 ? r[iDep] : r[1]) || "TEM34", durum, type });
         }
-        setIhRows(r=>[...r,...rows]);setM(`${rows.length} sipariş`);setTab("ihracat");
+        setMalKabulCards(rows);
+        const tot = rows.reduce((s, r) => s + r.adet, 0);
+        setM(`${rows.length} belge · ${tot.toLocaleString("tr-TR")} adet`);
+        setActiveTab("malKabul");
       }
       setS("ok");
-    }catch(e){setM("Dosya okunamadı");setS("err");}
+    } catch { setM("Dosya okunamadı"); setS("err"); }
   }
 
-  // ─── LAYOUT ───────────────────────────────────────────────────────────────
-  return(
-    <div style={{minHeight:"100vh",background:C.pageBg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Arial,sans-serif",color:C.text,overflowX:"hidden",position:"relative"}}>
-      {/* Arka plan */}
-      <div style={{position:"fixed",inset:0,zIndex:0,backgroundImage:"url('/background-logistics.jpg')",backgroundSize:"cover",backgroundPosition:"center",opacity:0.04}}/>
-      <div style={{position:"fixed",inset:0,zIndex:1,background:"linear-gradient(135deg,rgba(248,250,253,0.98),rgba(234,243,255,0.95),rgba(248,250,253,0.97))"}}/>
+  function setTab(t: string) { setActiveTab(t); }
 
-      {/* HEADER */}
-      <header style={{height:88,background:"rgba(255,255,255,0.98)",borderBottom:`1px solid ${C.border}`,boxShadow:"0 2px 12px rgba(11,47,120,0.05)",position:"sticky",top:0,zIndex:100}}>
-        <div style={{maxWidth:1320,margin:"0 auto",height:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 40px",boxSizing:"border-box"}}>
-          <div style={{display:"flex",alignItems:"center",gap:22}}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-full-color.png" alt="Başarı Otomotiv" style={{height:50,width:"auto",objectFit:"contain"}}/>
-            <div style={{width:1,height:40,background:C.border}}/>
-            <div style={{display:"flex",alignItems:"center",gap:9,fontSize:19,fontWeight:700}}>
-              <span>📅</span><span>Gün Sonu İzleme</span>
-              <span style={{color:C.border}}>•</span>
-              <span style={{color:C.amber,fontWeight:800}}>{longDate}</span>
+  // ─── Kaydet ve Paylaş ──────────────────────────────────────────────────────
+  async function handleSave() {
+    setSaving(true);
+    const p = { tarih: todayStr(), yurtici_rows: yurticiOrders, ihracat_rows: ihracatTerminleri, malkabul_rows: malKabulCards };
+    let id = raporId;
+    if (id) {
+      await sbUpdate(id, p);
+    } else {
+      id = await sbSave(p);
+      if (id) {
+        setRaporId(id);
+        const u = `${window.location.origin}?rapor=${id}`;
+        setShareUrl(u);
+        window.history.pushState({}, "", `?rapor=${id}`);
+      }
+    }
+    setSaving(false);
+    if (id) {
+      const u = shareUrl || `${window.location.origin}?rapor=${id}`;
+      const d = new Date().toLocaleDateString("tr-TR");
+      window.open(`https://wa.me/?text=${encodeURIComponent(`📋 *GÜN SONU RAPORU — ${d}*\n\nCanlı rapor:\n${u}`)}`, "_blank");
+    }
+  }
+
+  // ─── ChatGPT Tasarımı (bire bir korundu) ─────────────────────────────────
+  const colors = {
+    navy: "#0B2F78", navyDark: "#08265F", green: "#22C55E",
+    bg: "#F8FAFD", card: "#FFFFFF", text: "#172033", muted: "#6B7280",
+    border: "#E5EAF3", softNavy: "#EEF4FF", yellow: "#F59E0B", red: "#EF4444",
+    softGreen: "#EAFBF1", softYellow: "#FFF7E6", softRed: "#FEECEC",
+  };
+
+  const tabs = [
+    { id: "yurtici",  label: "Yurtiçi"  },
+    { id: "ihracat",  label: "İhracat"  },
+    { id: "malKabul", label: "Mal Kabul" },
+  ];
+
+  const getStatusStyle = (type: string) => {
+    if (type === "green")  return { backgroundColor: colors.softGreen,  color: "#15803D", border: "1px solid #B7EAC9" };
+    if (type === "yellow") return { backgroundColor: colors.softYellow, color: "#B45309", border: "1px solid #FAD58A" };
+    return { backgroundColor: colors.softRed, color: "#B91C1C", border: "1px solid #F8B4B4" };
+  };
+
+  const getOrderStatusStyle = (durum: string) => {
+    if (durum === "Tamamlandı") return getStatusStyle("green");
+    if (durum === "Kısmi")      return getStatusStyle("yellow");
+    return { backgroundColor: colors.softNavy, color: colors.navy, border: "1px solid #C7D7F7" };
+  };
+
+  const styles: Record<string, React.CSSProperties> = {
+    page:         { minHeight: "100vh", backgroundColor: colors.bg, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif', color: colors.text, padding: "24px", boxSizing: "border-box" },
+    shell:        { maxWidth: "1440px", margin: "0 auto" },
+    header:       { height: "82px", backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "22px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", boxShadow: "0 12px 32px rgba(11,47,120,0.06)", marginBottom: "18px" },
+    headerLeft:   { display: "flex", alignItems: "center", gap: "18px" },
+    logoBox:      { width: "172px", height: "48px", borderRadius: "14px", backgroundColor: colors.softNavy, border: "1px solid #D6E4FF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, color: colors.navy, letterSpacing: "-0.4px", fontSize: "18px" },
+    titleWrap:    { display: "flex", flexDirection: "column", gap: "4px" },
+    pageTitle:    { margin: 0, fontSize: "24px", fontWeight: 800, color: colors.navy, letterSpacing: "-0.6px" },
+    pageSubtitle: { margin: 0, color: colors.muted, fontSize: "13px", fontWeight: 600 },
+    headerRight:  { display: "flex", alignItems: "center", gap: "12px" },
+    notification: { width: "42px", height: "42px", borderRadius: "14px", backgroundColor: colors.bg, border: `1px solid ${colors.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: colors.navy, fontSize: "18px", cursor: "pointer", position: "relative" },
+    badge2:       { position: "absolute", top: -6, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#F59E0B", color: "#fff", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" },
+    userCard:     { height: "44px", borderRadius: "16px", backgroundColor: colors.bg, border: `1px solid ${colors.border}`, display: "flex", alignItems: "center", gap: "10px", padding: "0 12px 0 8px" },
+    avatar:       { width: "32px", height: "32px", borderRadius: "50%", backgroundColor: colors.navy, color: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "13px" },
+    userName:     { fontSize: "13px", fontWeight: 800, color: colors.text },
+    topBar:       { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", gap: "16px" },
+    tabs:         { backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "18px", padding: "6px", display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 10px 24px rgba(11,47,120,0.05)" },
+    tabButton:    { border: "none", borderRadius: "14px", padding: "13px 28px", fontSize: "14px", fontWeight: 800, cursor: "pointer", transition: "0.2s ease", fontFamily: "inherit" },
+    saveButton:   { height: "52px", border: "none", borderRadius: "16px", backgroundColor: colors.green, color: "#FFFFFF", padding: "0 24px", fontSize: "14px", fontWeight: 900, cursor: "pointer", boxShadow: "0 12px 24px rgba(34,197,94,0.24)", display: "flex", alignItems: "center", gap: "10px", whiteSpace: "nowrap", fontFamily: "inherit" },
+    uploadStrip:  { backgroundColor: colors.card, border: "1px dashed #B7C6E6", borderRadius: "18px", height: "70px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px", marginBottom: "18px", boxShadow: "0 10px 24px rgba(11,47,120,0.04)" },
+    uploadLeft:   { display: "flex", alignItems: "center", gap: "14px" },
+    uploadIcon:   { width: "42px", height: "42px", borderRadius: "14px", backgroundColor: colors.softNavy, color: colors.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" },
+    uploadTitle:  { margin: 0, fontSize: "15px", fontWeight: 900, color: colors.text },
+    uploadDesc:   { margin: "3px 0 0", fontSize: "12px", color: colors.muted, fontWeight: 600 },
+    uploadButton: { height: "40px", border: `1px solid ${colors.navy}`, color: colors.navy, backgroundColor: "#FFFFFF", borderRadius: "13px", padding: "0 16px", fontSize: "13px", fontWeight: 900, cursor: "pointer", fontFamily: "inherit" },
+    statsGrid:    { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "18px" },
+    statCard:     { backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "20px", padding: "20px", boxShadow: "0 12px 28px rgba(11,47,120,0.05)", position: "relative", overflow: "hidden" },
+    statAccent:   { position: "absolute", right: "-32px", top: "-32px", width: "110px", height: "110px", borderRadius: "50%", backgroundColor: colors.softNavy },
+    statLabel:    { margin: 0, fontSize: "13px", color: colors.muted, fontWeight: 800 },
+    statValue:    { margin: "10px 0 0", fontSize: "34px", fontWeight: 900, color: colors.navy, letterSpacing: "-1px" },
+    statNote:     { margin: "8px 0 0", fontSize: "12px", color: colors.muted, fontWeight: 600 },
+    card:         { backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "22px", boxShadow: "0 12px 28px rgba(11,47,120,0.05)", overflow: "hidden" },
+    sectionHeader:{ height: "62px", padding: "0 20px", borderBottom: `1px solid ${colors.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" },
+    sectionTitle: { margin: 0, fontSize: "18px", fontWeight: 900, color: colors.navy, letterSpacing: "-0.3px" },
+    sectionHint:  { fontSize: "12px", color: colors.muted, fontWeight: 700 },
+    table:        { width: "100%", borderCollapse: "collapse" },
+    th:           { textAlign: "left", padding: "14px 20px", fontSize: "12px", color: colors.muted, fontWeight: 900, backgroundColor: "#FBFCFF", borderBottom: `1px solid ${colors.border}`, textTransform: "uppercase", letterSpacing: "0.4px" },
+    td:           { padding: "16px 20px", fontSize: "14px", fontWeight: 700, borderBottom: `1px solid ${colors.border}`, color: colors.text },
+    badge:        { display: "inline-flex", alignItems: "center", justifyContent: "center", height: "28px", borderRadius: "999px", padding: "0 12px", fontSize: "11px", fontWeight: 900, letterSpacing: "0.3px" },
+    terminGrid:   { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" },
+    terminCard:   { backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "22px", padding: "20px", boxShadow: "0 12px 28px rgba(11,47,120,0.05)" },
+    terminTop:    { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "18px" },
+    company:      { margin: 0, fontSize: "17px", fontWeight: 900, color: colors.text, letterSpacing: "-0.3px" },
+    country:      { margin: "5px 0 0", color: colors.muted, fontSize: "13px", fontWeight: 700 },
+    terminInfo:   { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "16px" },
+    miniInfo:     { borderRadius: "16px", backgroundColor: "#FBFCFF", border: `1px solid ${colors.border}`, padding: "14px" },
+    miniLabel:    { margin: 0, fontSize: "11px", fontWeight: 800, color: colors.muted, textTransform: "uppercase", letterSpacing: "0.3px" },
+    miniValue:    { margin: "7px 0 0", fontSize: "15px", fontWeight: 900, color: colors.navy },
+    malKabulGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" },
+    irsaliyeCard: { backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: "22px", padding: "20px", boxShadow: "0 12px 28px rgba(11,47,120,0.05)" },
+    irsaliyeNo:   { margin: 0, fontSize: "18px", fontWeight: 900, color: colors.navy, letterSpacing: "-0.4px" },
+    supplier:     { margin: "7px 0 0", color: colors.muted, fontSize: "13px", fontWeight: 700 },
+    divider:      { height: "1px", backgroundColor: colors.border, margin: "18px 0" },
+    footerGrid:   { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" },
+    shareBanner:  { backgroundColor: "#EFF9FF", border: "1px solid #BAE0FC", borderRadius: "14px", padding: "10px 18px", display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" },
+    liveBanner:   { backgroundColor: "#F0FDF4", border: "1px solid #C6F6D5", borderRadius: "12px", padding: "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" },
+  };
+
+  // ─── Upload şeridini render et ────────────────────────────────────────────
+  const renderUploadStrip = () => {
+    const cfg = {
+      yurtici:  { title: "Yurtiçi Excel Raporu",  desc: "Sipariş, faturalanan ve kalan adetleri güncelle.", icon: "📋", st: stYi, msg: msgYi, ref: refYi, mode: "yi" as const },
+      ihracat:  { title: "İhracat Excel Raporu",  desc: "Termin, ülke, müşteri ve sevk durumlarını yükle.", icon: "✈️", st: stIh, msg: msgIh, ref: refIh, mode: "ih" as const },
+      malKabul: { title: "Mal Kabul Excel Raporu",desc: "İrsaliye, tedarikçi ve işlem durumlarını yükle.",  icon: "📦", st: stIr, msg: msgIr, ref: refIr, mode: "ir" as const },
+    };
+    const c = cfg[activeTab as keyof typeof cfg];
+    const ok  = c.st === "ok";
+    const err = c.st === "err";
+    const ld  = c.st === "loading";
+
+    return (
+      <>
+        <div style={{ ...styles.uploadStrip, borderColor: ok ? "#86efac" : err ? "#fca5a5" : "#B7C6E6", backgroundColor: ok ? "#F0FDF4" : err ? "#FEF2F2" : colors.card }}>
+          <div style={styles.uploadLeft}>
+            <div style={styles.uploadIcon}>{ok ? "✅" : err ? "❌" : ld ? "⏳" : c.icon}</div>
+            <div>
+              <p style={styles.uploadTitle}>{ok || err ? c.msg : c.title}</p>
+              <p style={styles.uploadDesc}>{ok ? "Dosyayı değiştirmek için tekrar seç" : err ? "Geçerli bir Excel dosyası seç" : c.desc}</p>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {raporId&&<span style={{fontSize:12,fontWeight:700,color:C.greenDk,background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:20,padding:"4px 12px"}}>🟢 Canlı</span>}
-            {/* Çan */}
-            <div ref={notifRef} style={{position:"relative"}}>
-              <div onClick={()=>setShowNotif(v=>!v)} style={{width:42,height:42,borderRadius:"50%",border:`1px solid ${C.border}`,background:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",position:"relative"}}>
-                🔔
-                <span style={{position:"absolute",top:-5,right:-4,width:19,height:19,borderRadius:"50%",background:"#F59E0B",color:C.white,fontSize:10,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>2</span>
-              </div>
-              {showNotif&&(
-                <div style={{position:"absolute",top:52,right:0,width:300,background:C.white,border:`1px solid ${C.border}`,borderRadius:14,boxShadow:"0 20px 50px rgba(16,42,67,0.14)",zIndex:200,overflow:"hidden"}}>
-                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontWeight:800,fontSize:14}}>Bildirimler</span>
-                    <span style={{fontSize:12,color:C.sub}}>2 yeni</span>
-                  </div>
-                  {NOTIFS.map(n=>(
-                    <div key={n.id} style={{padding:"10px 16px",borderBottom:`1px solid ${C.border}`,background:n.unread?"#FAFBFF":C.white,display:"flex",gap:10,alignItems:"flex-start"}}>
-                      <span style={{fontSize:18}}>{n.icon}</span>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,fontWeight:n.unread?700:500,color:C.text}}>{n.text}</div>
-                        <div style={{fontSize:11,color:C.sub,marginTop:2}}>{n.time}</div>
-                      </div>
-                      {n.unread&&<span style={{width:7,height:7,borderRadius:"50%",background:C.navy,marginTop:4,flexShrink:0,display:"block"}}/>}
-                    </div>
-                  ))}
-                  <div style={{padding:"8px 16px",textAlign:"center"}}>
-                    <button onClick={()=>setShowNotif(false)} style={{border:"none",background:"none",color:C.navy,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Kapat</button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <div style={{width:42,height:42,borderRadius:"50%",border:`1px solid ${C.border}`,background:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",color:C.text}}>?</div>
-            <div style={{width:44,height:44,borderRadius:"50%",border:`1px solid ${C.border}`,background:C.white,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,cursor:"pointer",color:C.text}}>BO</div>
-            <span style={{color:C.sub,fontWeight:900,fontSize:15,cursor:"pointer"}}>⌄</span>
-          </div>
+          <button style={styles.uploadButton} onClick={() => c.ref.current?.click()}>
+            {ok ? "Değiştir" : "Excel Seç"}
+          </button>
         </div>
-      </header>
+        <input ref={c.ref} type="file" accept=".xlsx,.xls" style={{ display: "none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) parseExcel(f, c.mode); e.target.value = ""; }}/>
+      </>
+    );
+  };
 
-      {/* MAIN */}
-      <main style={{position:"relative",zIndex:2,paddingTop:28,paddingBottom:80}}>
-        <div style={{maxWidth:1280,margin:"0 auto",padding:"0 40px",boxSizing:"border-box"}}>
-
-          {/* Canlı / Paylaşım */}
-          {isView&&(
-            <div style={{maxWidth:820,margin:"0 auto 16px",background:"#f0fdf4",border:"1px solid #c6f6d5",borderRadius:10,padding:"8px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span style={{fontSize:13,fontWeight:700,color:C.greenDk}}>🔄 Otomatik güncelleniyor{lastRefresh&&` · ${lastRefresh.toLocaleTimeString("tr-TR")}`}</span>
-              <button onClick={()=>raporId&&loadReport(raporId)} style={{border:"1px solid #86efac",borderRadius:7,background:C.white,color:C.greenDk,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>↺ Yenile</button>
+  // ─── Yurtiçi içerik ───────────────────────────────────────────────────────
+  const renderYurtici = () => {
+    const totS = yurticiOrders.reduce((s, r) => s + r.siparis, 0);
+    const totF = yurticiOrders.reduce((s, r) => s + r.fatura,  0);
+    const totK = yurticiOrders.reduce((s, r) => s + r.kalan,   0);
+    return (
+      <>
+        <div style={styles.statsGrid}>
+          {[
+            { label: "Toplam Sipariş",  val: totS, note: "Bugünkü toplam yurtiçi sipariş adedi" },
+            { label: "Faturalanan",      val: totF, note: "Gün sonuna kadar faturalanan adet"     },
+            { label: "Kalan",            val: totK, note: "Operasyon kapanışı öncesi kalan adet"  },
+          ].map(({ label, val, note }) => (
+            <div key={label} style={styles.statCard}>
+              <div style={styles.statAccent} />
+              <p style={styles.statLabel}>{label}</p>
+              <p style={{ ...styles.statValue, color: label === "Kalan" && totK > 0 ? "#dc2626" : colors.navy }}>{val.toLocaleString("tr-TR")}</p>
+              <p style={styles.statNote}>{note}</p>
             </div>
-          )}
-          {shareUrl&&(
-            <div style={{maxWidth:820,margin:"0 auto 16px",background:"#eff9ff",border:"1px solid #bae0fc",borderRadius:10,padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
-              <span>🔗</span>
-              <span style={{fontSize:12,color:C.sub,flex:1,fontFamily:"monospace",wordBreak:"break-all"}}>{shareUrl}</span>
-              <button onClick={async()=>{await navigator.clipboard.writeText(shareUrl);setCopied(true);setTimeout(()=>setCopied(false),2000);}} style={{border:"1px solid #bae0fc",borderRadius:7,background:C.white,color:C.navy,padding:"4px 10px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{copied?"✅ Kopyalandı":"📋 Kopyala"}</button>
-            </div>
-          )}
-
-          {/* SEKMELER */}
-          <div style={{maxWidth:1160,margin:"0 auto 20px"}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 175px",gap:16,height:66}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:C.white,border:`1px solid ${C.border}`,borderRadius:15,boxShadow:C.sh,overflow:"hidden",height:66}}>
-                {([["yurtici","🚚","Yurtiçi"],["ihracat","🌐","İhracat"],["malkabul","📦","Mal Kabul"]] as const).map(([k,ic,lb])=>(
-                  <button key={k} onClick={()=>setTab(k as Tab)}
-                    style={{border:"none",background:tab===k?C.navyDk:"transparent",fontSize:15,fontWeight:700,color:tab===k?C.white:C.sub,display:"flex",alignItems:"center",justifyContent:"center",gap:8,cursor:"pointer",position:"relative",fontFamily:"inherit",height:"100%"}}>
-                    <span style={{fontSize:19}}>{ic}</span>{lb}
-                    {tab===k&&<span style={{position:"absolute",bottom:-8,left:"50%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"8px solid transparent",borderRight:"8px solid transparent",borderTop:`8px solid ${C.navyDk}`}}/>}
-                  </button>
+          ))}
+        </div>
+        <div style={styles.card}>
+          <div style={styles.sectionHeader}>
+            <h2 style={styles.sectionTitle}>Yurtiçi Sipariş Listesi</h2>
+            <span style={styles.sectionHint}>{yurticiOrders.length} kayıt · {new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</span>
+          </div>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                {["Sipariş No", "Müşteri / Bölge", "Sipariş", "Faturalanan", "Kalan", "Durum"].map(h => (
+                  <th key={h} style={styles.th}>{h}</th>
                 ))}
-              </div>
-              <button onClick={handleSave} disabled={saving} style={{height:66,border:"none",borderRadius:15,background:`linear-gradient(135deg,${C.green},${C.greenDk})`,color:C.white,fontSize:15,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 10px 20px rgba(22,163,74,0.22)",cursor:"pointer",fontFamily:"inherit"}}>
-                <span style={{fontSize:18}}>{saving?"⏳":"💾"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
-              </button>
+              </tr>
+            </thead>
+            <tbody>
+              {yurticiOrders.map((item, i) => (
+                <tr key={i}>
+                  <td style={styles.td}>{item.no}</td>
+                  <td style={styles.td}>{item.musteri}</td>
+                  <td style={styles.td}>{item.siparis.toLocaleString("tr-TR")}</td>
+                  <td style={styles.td}>{item.fatura.toLocaleString("tr-TR")}</td>
+                  <td style={{ ...styles.td, color: item.kalan > 0 ? "#dc2626" : "#15803d", fontWeight: 900 }}>{item.kalan.toLocaleString("tr-TR")}</td>
+                  <td style={styles.td}><span style={{ ...styles.badge, ...getOrderStatusStyle(item.durum) }}>{item.durum}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    );
+  };
+
+  // ─── İhracat içerik ───────────────────────────────────────────────────────
+  const renderIhracat = () => (
+    <div style={styles.terminGrid}>
+      {ihracatTerminleri.map((item, i) => (
+        <div key={i} style={styles.terminCard}>
+          <div style={styles.terminTop}>
+            <div>
+              <p style={styles.company}>{item.firma}</p>
+              <p style={styles.country}>{item.ulke}</p>
+            </div>
+            <span style={{ ...styles.badge, ...getStatusStyle(item.type) }}>{item.durum}</span>
+          </div>
+          <div style={styles.terminInfo}>
+            <div style={styles.miniInfo}><p style={styles.miniLabel}>Termin</p><p style={styles.miniValue}>{item.termin}</p></div>
+            <div style={styles.miniInfo}><p style={styles.miniLabel}>Adet</p><p style={styles.miniValue}>{item.adet.toLocaleString("tr-TR")}</p></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ─── Mal Kabul içerik ─────────────────────────────────────────────────────
+  const renderMalKabul = () => (
+    <div style={styles.malKabulGrid}>
+      {malKabulCards.map((item, i) => (
+        <div key={i} style={styles.irsaliyeCard}>
+          <div style={styles.terminTop}>
+            <div>
+              <p style={styles.irsaliyeNo}>{item.irsaliye}</p>
+              <p style={styles.supplier}>{item.tedarikci}</p>
+            </div>
+            <span style={{ ...styles.badge, ...getStatusStyle(item.type) }}>{item.durum}</span>
+          </div>
+          <div style={styles.divider} />
+          <div style={styles.footerGrid}>
+            <div style={styles.miniInfo}><p style={styles.miniLabel}>Adet</p><p style={styles.miniValue}>{item.adet.toLocaleString("tr-TR")}</p></div>
+            <div style={styles.miniInfo}><p style={styles.miniLabel}>Lokasyon</p><p style={styles.miniValue}>{item.lokasyon}</p></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+  return (
+    <main style={styles.page}>
+      <div style={styles.shell}>
+
+        {/* Canlı görüntüleme */}
+        {isView && (
+          <div style={styles.liveBanner}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#15803d" }}>
+              🔄 Otomatik güncelleniyor (30 sn){lastRefresh && ` · Son: ${lastRefresh.toLocaleTimeString("tr-TR")}`}
+            </span>
+            <button onClick={() => raporId && loadReport(raporId)}
+              style={{ border: "1px solid #86efac", borderRadius: 8, background: "#fff", color: "#15803d", padding: "4px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              ↺ Yenile
+            </button>
+          </div>
+        )}
+
+        {/* Paylaşım linki */}
+        {shareUrl && (
+          <div style={styles.shareBanner}>
+            <span style={{ fontSize: 18 }}>🔗</span>
+            <span style={{ flex: 1, fontSize: 12, color: colors.muted, fontFamily: "monospace", wordBreak: "break-all" }}>{shareUrl}</span>
+            <button onClick={async () => { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              style={{ border: "1px solid #BAE0FC", borderRadius: 8, background: "#fff", color: colors.navy, padding: "5px 12px", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              {copied ? "✅ Kopyalandı" : "📋 Kopyala"}
+            </button>
+          </div>
+        )}
+
+        {/* Header */}
+        <header style={styles.header}>
+          <div style={styles.headerLeft}>
+            <div style={styles.logoBox}>BAŞARI OTOMOTİV</div>
+            <div style={styles.titleWrap}>
+              <h1 style={styles.pageTitle}>Gün Sonu İzleme</h1>
+              <p style={styles.pageSubtitle}>Operasyon kapanış dashboardı · {today}</p>
             </div>
           </div>
-
-          {/* UPLOAD — ince şerit */}
-          {tab==="yurtici"&&(
-            <div style={{maxWidth:820,margin:"0 auto 16px",background:C.white,border:`1px solid ${C.border}`,borderRadius:13,boxShadow:C.sh,padding:"14px 18px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:C.navy,letterSpacing:.5,marginBottom:10,textTransform:"uppercase"}}>☁️ Yurtiçi — Zeus Excel Yükleme</div>
-              <UploadBar icon="📋" label="Yurtiçi İş Talepleri" st={stYi} msg={msgYi} onPick={()=>refYi.current?.click()}/>
+          <div style={styles.headerRight}>
+            <div style={{ ...styles.notification, position: "relative" }}>
+              🔔
+              <span style={styles.badge2}>2</span>
             </div>
-          )}
-          {tab==="ihracat"&&(
-            <div style={{maxWidth:820,margin:"0 auto 16px",background:C.white,border:`1px solid ${C.border}`,borderRadius:13,boxShadow:C.sh,padding:"14px 18px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:C.navy,letterSpacing:.5,marginBottom:10,textTransform:"uppercase"}}>☁️ İhracat — Zeus Excel Yükleme</div>
-              <UploadBar icon="🌐" label="İhracat İş Talepleri" st={stIh} msg={msgIh} onPick={()=>refIh.current?.click()}/>
+            {raporId && <span style={{ fontSize: 12, fontWeight: 700, color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 20, padding: "4px 12px" }}>🟢 Canlı</span>}
+            <div style={styles.userCard}>
+              <div style={styles.avatar}>FT</div>
+              <div style={styles.userName}>Fatih Tosunoğlu</div>
             </div>
-          )}
-          {tab==="malkabul"&&(
-            <div style={{maxWidth:820,margin:"0 auto 16px",background:C.white,border:`1px solid ${C.border}`,borderRadius:13,boxShadow:C.sh,padding:"14px 18px"}}>
-              <div style={{fontSize:12,fontWeight:800,color:C.navy,letterSpacing:.5,marginBottom:10,textTransform:"uppercase"}}>☁️ Mal Kabul — Zeus Excel Yükleme</div>
-              <UploadBar icon="📦" label="Mal Kabul Exceli" st={stIr} msg={msgIr} onPick={()=>refIr.current?.click()}/>
-            </div>
-          )}
+          </div>
+        </header>
 
-          {/* ─── YURTİÇİ ─── */}
-          {tab==="yurtici"&&<>
-            {/* Sayaçlar */}
-            <div style={{maxWidth:820,margin:"0 auto 16px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
-              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:13,boxShadow:C.sh,padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:48,height:48,borderRadius:12,background:"#EAF3FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📋</div>
-                <div>
-                  <div style={{fontSize:12,color:C.sub,fontWeight:600,marginBottom:2}}>Sipariş Sayısı</div>
-                  <input type="number" value={yiSiparis} onChange={e=>setYiSiparis(e.target.value)} placeholder="0"
-                    style={{fontSize:34,fontWeight:900,color:C.text,border:"none",outline:"none",background:"transparent",width:80,fontFamily:"inherit"}}/>
-                </div>
-              </div>
-              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:13,boxShadow:C.sh,padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:48,height:48,borderRadius:12,background:"#F3EEFF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🧾</div>
-                <div>
-                  <div style={{fontSize:12,color:C.sub,fontWeight:600,marginBottom:2}}>Faturalanan</div>
-                  <input type="number" value={yiFatura} onChange={e=>setYiFatura(e.target.value)} placeholder="0"
-                    style={{fontSize:34,fontWeight:900,color:C.text,border:"none",outline:"none",background:"transparent",width:80,fontFamily:"inherit"}}/>
-                </div>
-              </div>
-              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:13,boxShadow:C.sh,padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:48,height:48,borderRadius:12,background:"#EDFAF2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:900,color:C.greenDk}}>✓</div>
-                <div>
-                  <div style={{fontSize:12,color:C.sub,fontWeight:600,marginBottom:2}}>Kalan</div>
-                  <div style={{fontSize:34,fontWeight:900,color:yiKalan>0?"#dc2626":C.greenDk,lineHeight:1}}>{yiKalan}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sipariş listesi */}
-            {yiRows.length===0?(
-              <div style={{maxWidth:820,margin:"0 auto",background:C.white,border:`1px solid ${C.border}`,borderRadius:13,padding:"24px",textAlign:"center",color:C.sub,fontSize:14}}>
-                Excel yüklendikten sonra siparişler burada listelenir
-              </div>
-            ):<>
-              <div style={{maxWidth:820,margin:"0 auto 10px",background:"#EAF3FF",border:`1px solid #C8DFF8`,borderRadius:10,padding:"8px 16px",display:"flex",gap:20}}>
-                <span style={{fontSize:13,fontWeight:700,color:C.navy}}>📊 {yiRows.length} sipariş</span>
-                <span style={{fontSize:13,fontWeight:700,color:C.navy}}>📦 {yiRows.reduce((s,r)=>s+(parseInt(r.adet)||0),0).toLocaleString("tr-TR")} adet</span>
-              </div>
-              {yiRows.map(r=>(
-                <div key={r.id} style={{maxWidth:820,margin:"0 auto 8px",background:C.white,border:`1px solid ${C.border}`,borderRadius:11,boxShadow:C.sh,padding:"12px 16px",display:"flex",alignItems:"flex-start",gap:10}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:800,fontSize:15,color:C.text,marginBottom:5}}>{r.musteri}</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:0}}>
-                      {r.il&&<Tag l={r.il} bg="#EAF3FF" c={C.navy}/>}
-                      {r.kulvar&&<Tag l={r.kulvar} bg="#FEF3C7" c="#92400E"/>}
-                      {r.adet&&<Tag l={`${fmtN(r.adet)} Adet`} bg="#EDFAF2" c={C.greenDk}/>}
-                      {r.cesit&&<Tag l={`${r.cesit} Çeşit`} bg="#EDFAF2" c={C.greenDk}/>}
-                      {r.sevkSekli&&<Tag l={r.sevkSekli} bg="#F3EEFF" c="#7C3AED"/>}
-                      {r.karsilanmaOran&&<Tag l={`%${r.karsilanmaOran}`} bg={parseFloat(r.karsilanmaOran)>=100?"#EDFAF2":"#FEF9EC"} c={parseFloat(r.karsilanmaOran)>=100?C.greenDk:"#B45309"}/>}
-                    </div>
-                  </div>
-                  <button onClick={()=>setYiRows(rs=>rs.filter(x=>x.id!==r.id))} style={{width:26,height:26,border:"none",borderRadius:6,background:"#FEF2F2",color:"#ef4444",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
-                </div>
-              ))}
-            </>}
-          </>}
-
-          {/* ─── İHRACAT ─── */}
-          {tab==="ihracat"&&<>
-            {ihRows.length===0?(
-              <div style={{maxWidth:820,margin:"0 auto",background:C.white,border:`1px solid ${C.border}`,borderRadius:13,padding:"24px",textAlign:"center",color:C.sub,fontSize:14}}>
-                Excel yüklendikten sonra ihracat siparişleri burada listelenir
-              </div>
-            ):<>
-              <div style={{maxWidth:820,margin:"0 auto 10px",background:"#EAF3FF",border:`1px solid #C8DFF8`,borderRadius:10,padding:"8px 16px",display:"flex",gap:20}}>
-                <span style={{fontSize:13,fontWeight:700,color:C.navy}}>✈️ {ihRows.length} sipariş</span>
-                <span style={{fontSize:13,fontWeight:700,color:"#dc2626"}}>🔴 Acil: {ihRows.filter(r=>{const s=calcStatus(r);return s?.d.includes("ACİL");}).length}</span>
-              </div>
-              {ihRows.map(r=>{
-                const s=calcStatus(r);
-                return(
-                  <div key={r.id} style={{maxWidth:820,margin:"0 auto 8px",background:C.white,border:`1px solid ${C.border}`,borderLeft:`3px solid ${s?.c||C.border}`,borderRadius:11,boxShadow:C.sh,padding:"12px 16px",display:"flex",alignItems:"flex-start",gap:10}}>
-                    <div style={{flex:1}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
-                        <span style={{fontWeight:800,fontSize:15,color:C.text}}>{r.musteri}</span>
-                        {r.ulke&&<Tag l={r.ulke} bg="#F1F5F9" c="#475569"/>}
-                      </div>
-                      {/* Termin durumu — yeşil/sarı/kırmızı belirgin badge */}
-                      {s&&<StatusBadge label={s.d} color={s.c}/>}
-                      <div style={{display:"flex",flexWrap:"wrap",gap:0,marginTop:6}}>
-                        {r.sku&&<Tag l={`${r.sku} SKU`} bg="#EAF3FF" c={C.navy}/>}
-                        {r.adet&&<Tag l={`${fmtN(r.adet)} Adet`} bg="#EAF3FF" c={C.navy}/>}
-                        {r.ilkTarih&&<Tag l={`Sipariş: ${fmtDate(r.ilkTarih)}`} bg="#F8FAFD" c={C.sub}/>}
-                      </div>
-                      {!r.cikisTarih&&(
-                        <button onClick={()=>setIhRows(rs=>rs.map(x=>x.id===r.id?{...x,sebep:"GÖNDERİLDİ",cikisTarih:todayStr()}:x))}
-                          style={{marginTop:6,border:"none",background:"none",color:C.greenDk,fontSize:12,fontWeight:800,cursor:"pointer",padding:0,fontFamily:"inherit"}}>
-                          ✓ Gönderildi olarak işaretle
-                        </button>
-                      )}
-                    </div>
-                    <button onClick={()=>setIhRows(rs=>rs.filter(x=>x.id!==r.id))} style={{width:26,height:26,border:"none",borderRadius:6,background:"#FEF2F2",color:"#ef4444",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
-                  </div>
-                );
-              })}
-            </>}
-          </>}
-
-          {/* ─── MAL KABUL ─── */}
-          {tab==="malkabul"&&<>
-            {mkRows.length===0?(
-              <div style={{maxWidth:820,margin:"0 auto",background:C.white,border:`1px solid ${C.border}`,borderRadius:13,padding:"24px",textAlign:"center",color:C.sub,fontSize:14}}>
-                Excel yüklendikten sonra mal kabul kayıtları burada listelenir
-              </div>
-            ):<>
-              <div style={{maxWidth:820,margin:"0 auto 10px",background:"#EAF3FF",border:`1px solid #C8DFF8`,borderRadius:10,padding:"8px 16px",display:"flex",gap:20}}>
-                <span style={{fontSize:13,fontWeight:700,color:C.navy}}>📦 {mkRows.length} belge</span>
-                <span style={{fontSize:13,fontWeight:700,color:C.greenDk}}>✓ Tamamlanan: {mkRows.filter(r=>r.durum==="TAMAMLANDI").length}</span>
-                <span style={{fontSize:13,fontWeight:700,color:"#ca8a04"}}>⏳ İşlemde: {mkRows.filter(r=>r.durum==="İŞLEMDE").length}</span>
-                <span style={{fontSize:13,fontWeight:700,color:"#dc2626"}}>🔴 Başlamadı: {mkRows.filter(r=>r.durum==="BAŞLAMADI").length}</span>
-              </div>
-              {mkRows.map(r=>{
-                // BAŞLAMADI → kırmızı, İŞLEMDE → sarı, TAMAMLANDI → yeşil
-                const dc=r.durum==="TAMAMLANDI"?C.greenDk:r.durum==="İŞLEMDE"?"#ca8a04":"#dc2626";
-                return(
-                  <div key={r.id} style={{maxWidth:820,margin:"0 auto 8px",background:C.white,border:`1px solid ${C.border}`,borderLeft:`3px solid ${dc}`,borderRadius:11,boxShadow:C.sh,padding:"12px 16px",display:"flex",alignItems:"flex-start",gap:10}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:800,fontSize:15,color:C.text,marginBottom:6}}>{r.firma}</div>
-                      {/* Durum badge — belirgin */}
-                      <StatusBadge label={r.durum} color={dc}/>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:0,marginTop:6}}>
-                        <Tag l={r.depo} bg="#F1F5F9" c="#475569"/>
-                        {r.adet&&<Tag l={`${fmtN(r.adet)} Adet`} bg="#EAF3FF" c={C.navy}/>}
-                        {r.cesit&&<Tag l={`${r.cesit} Çeşit`} bg="#EAF3FF" c={C.navy}/>}
-                        {r.tarih&&<Tag l={fmtDate(r.tarih)} bg="#F8FAFD" c={C.sub}/>}
-                        {r.belgeNo&&<Tag l={r.belgeNo} bg="#F8FAFD" c={C.sub}/>}
-                      </div>
-                    </div>
-                    <button onClick={()=>setMkRows(rs=>rs.filter(x=>x.id!==r.id))} style={{width:26,height:26,border:"none",borderRadius:6,background:"#FEF2F2",color:"#ef4444",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
-                  </div>
-                );
-              })}
-            </>}
-          </>}
-
+        {/* Tab bar */}
+        <div style={styles.topBar}>
+          <nav style={styles.tabs}>
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  style={{ ...styles.tabButton, backgroundColor: isActive ? colors.navy : "transparent", color: isActive ? "#FFFFFF" : colors.navy, boxShadow: isActive ? "0 10px 20px rgba(11,47,120,0.22)" : "none" }}>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+          <button style={styles.saveButton} onClick={handleSave} disabled={saving}>
+            <span>💾</span>
+            {saving ? "Kaydediliyor..." : "Kaydet ve Paylaş"}
+          </button>
         </div>
-      </main>
 
-      <input ref={refYi} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f,"yi");e.target.value="";}}/>
-      <input ref={refIh} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f,"ih");e.target.value="";}}/>
-      <input ref={refIr} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f,"ir");e.target.value="";}}/>
-    </div>
+        {/* Upload şeridi */}
+        {renderUploadStrip()}
+
+        {/* İçerik */}
+        {activeTab === "yurtici"  && renderYurtici()}
+        {activeTab === "ihracat"  && renderIhracat()}
+        {activeTab === "malKabul" && renderMalKabul()}
+
+      </div>
+    </main>
   );
 }
