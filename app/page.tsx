@@ -130,6 +130,12 @@ function DayEndSummary({title,rows}:{title:string;rows:[string,number,string][]}
 // ─── ANA SAYFA ────────────────────────────────────────────────────────────────
 export default function App(){
   const [tab,setTab]=useState<Tab>("malKabul");
+  const [mobile,setMobile]=useState(false);
+  useEffect(()=>{
+    const chk=()=>setMobile(window.innerWidth<900);
+    chk();window.addEventListener("resize",chk);
+    return()=>window.removeEventListener("resize",chk);
+  },[]);
   const [yiRows,setYiRows]=useState<YIRow[]>(DEF_YI);
   const [ihRows,setIhRows]=useState<IHRow[]>(DEF_IH);
   const [mkRows,setMkRows]=useState<MKRow[]>(DEF_MK);
@@ -253,10 +259,12 @@ export default function App(){
         </div>
         <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt</span>
       </div>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr>{head.map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
-        <tbody>{body}</tbody>
-      </table>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch" as any}}>
+        <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
+          <thead><tr>{head.map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
+          <tbody>{body}</tbody>
+        </table>
+      </div>
     </div>
   );
 
@@ -264,15 +272,15 @@ export default function App(){
     <div style={{minHeight:"100vh",background:C.pageBg,fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif',color:C.text}}>
 
       {/* ── 1. HEADER — 70px, koyu navy, sağ alan YOK ── */}
-      <header style={{height:70,background:C.navyDk,display:"flex",alignItems:"center",padding:"0 36px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(6,31,85,0.35)"}}>
+      <header style={{minHeight:mobile?56:70,background:C.navyDk,display:"flex",alignItems:"center",flexWrap:"wrap",gap:mobile?8:0,padding:mobile?"8px 16px":"0 36px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(6,31,85,0.35)"}}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/basari-logo-white.png" alt="Başarı Otomotiv" style={{height:42,objectFit:"contain"}}
+        <img src="/basari-logo-white.png" alt="Başarı Otomotiv" style={{height:mobile?30:42,objectFit:"contain"}}
           onError={e=>{const t=e.target as HTMLImageElement;t.src="/logo-full-color.png";t.style.filter="brightness(0) invert(1)";}}/>
-        <div style={{width:1,height:36,background:"rgba(255,255,255,0.25)",margin:"0 22px"}}/>
-        <span style={{color:"#fff",fontSize:22,fontWeight:900,letterSpacing:-0.4}}>Gün Sonu İzleme</span>
-        <span style={{display:"inline-flex",alignItems:"center",gap:8,marginLeft:20,color:"rgba(255,255,255,0.85)",fontSize:14,fontWeight:700}}>
+        <div style={{width:1,height:mobile?24:36,background:"rgba(255,255,255,0.25)",margin:mobile?"0 12px":"0 22px"}}/>
+        <span style={{color:"#fff",fontSize:mobile?16:22,fontWeight:900,letterSpacing:-0.4}}>Gün Sonu İzleme</span>
+        {!mobile&&<span style={{display:"inline-flex",alignItems:"center",gap:8,marginLeft:20,color:"rgba(255,255,255,0.85)",fontSize:14,fontWeight:700}}>
           <span style={{fontSize:16}}>📅</span>{today}
-        </span>
+        </span>}
         {raporId&&<span style={{marginLeft:"auto",fontSize:12,fontWeight:800,color:"#86efac",background:"rgba(34,197,94,0.15)",border:"1px solid rgba(134,239,172,0.4)",borderRadius:20,padding:"4px 14px"}}>🟢 Canlı</span>}
       </header>
 
@@ -284,8 +292,8 @@ export default function App(){
       </div>
 
       {/* ── 4. ANA CONTAINER — banner'a hafif bindirilmiş ── */}
-      <div style={{maxWidth:1500,margin:"-18px auto 0",padding:"0 24px 60px",position:"relative",zIndex:5}}>
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:22,boxShadow:"0 20px 60px rgba(11,47,120,0.10)",padding:"22px 24px"}}>
+      <div style={{maxWidth:1500,margin:"-18px auto 0",padding:mobile?"0 10px 40px":"0 24px 60px",position:"relative",zIndex:5}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:mobile?16:22,boxShadow:"0 20px 60px rgba(11,47,120,0.10)",padding:mobile?"14px 12px":"22px 24px"}}>
 
           {/* Canlı / paylaşım banner */}
           {isView&&(
@@ -306,28 +314,28 @@ export default function App(){
           )}
 
           {/* ── 5. SEKMELER + KAYDET ── */}
-          <div style={{display:"flex",alignItems:"stretch",gap:14,marginBottom:18}}>
-            <div style={{display:"flex",gap:14,flex:1}}>
+          <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:"stretch",gap:mobile?10:14,marginBottom:18}}>
+            <div style={{display:"flex",gap:mobile?8:14,flex:1}}>
               {TABS.map(t=>{
                 const act=tab===t.id;
                 return(
                   <button key={t.id} onClick={()=>setTab(t.id)}
-                    style={{flex:1,maxWidth:300,display:"flex",alignItems:"center",justifyContent:"center",gap:12,height:64,border:act?"none":`1px solid ${C.border}`,borderRadius:12,
-                      background:act?C.navyDk:"#fff",color:act?"#fff":C.navy,fontSize:17,fontWeight:900,cursor:"pointer",fontFamily:"inherit",
+                    style={{flex:1,maxWidth:mobile?undefined:300,display:"flex",alignItems:"center",justifyContent:"center",gap:mobile?6:12,height:mobile?52:64,border:act?"none":`1px solid ${C.border}`,borderRadius:12,
+                      background:act?C.navyDk:"#fff",color:act?"#fff":C.navy,fontSize:mobile?13:17,fontWeight:900,cursor:"pointer",fontFamily:"inherit",
                       boxShadow:act?"0 10px 26px rgba(6,31,85,0.30)":"0 4px 12px rgba(11,47,120,0.04)",transition:"all .15s"}}>
-                    <span style={{fontSize:26}}>{t.icon}</span>{t.label}
+                    <span style={{fontSize:mobile?20:26}}>{t.icon}</span>{t.label}
                   </button>
                 );
               })}
             </div>
             <button onClick={handleSave} disabled={saving}
-              style={{display:"flex",alignItems:"center",gap:10,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 26px",height:64,fontWeight:900,fontSize:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 26px",height:mobile?50:64,fontWeight:900,fontSize:mobile?14:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
               <span style={{fontSize:20}}>{saving?"⏳":"🔗"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
             </button>
           </div>
 
           {/* ── 7. EXCEL UPLOAD BAR ── */}
-          <div style={{background:"#fff",border:`1px solid ${stU==="ok"?"#BBF7D0":stU==="err"?"#FECACA":C.border}`,borderRadius:14,padding:"16px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,boxShadow:"0 4px 14px rgba(11,47,120,0.04)"}}>
+          <div style={{background:"#fff",border:`1px solid ${stU==="ok"?"#BBF7D0":stU==="err"?"#FECACA":C.border}`,borderRadius:14,padding:mobile?"12px 14px":"16px 22px",display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",gap:mobile?12:0,justifyContent:"space-between",marginBottom:20,boxShadow:"0 4px 14px rgba(11,47,120,0.04)"}}>
             <div style={{display:"flex",alignItems:"center",gap:16}}>
               <div style={{width:52,height:52,borderRadius:12,background:"#E7F6EC",border:"1px solid #C6E9D2",display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <span style={{color:"#1D6F42",fontWeight:900,fontSize:22,fontFamily:"Georgia,serif"}}>X</span>
@@ -348,12 +356,12 @@ export default function App(){
           </div>
 
           {/* ── 9. İKİ KOLON ── */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 310px",gap:20,alignItems:"start"}}>
+          <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 310px",gap:20,alignItems:"start"}}>
 
             {/* SOL KOLON */}
             <div>
               {/* ── 8. ÖZET KARTLARI ── */}
-              <div style={{display:"flex",gap:16,marginBottom:20}}>
+              <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:16,marginBottom:20}}>
                 {tab==="yurtici"&&<>
                   <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş"/>
                   <SummaryCard type="yellow" title="DEVAM"      val={yiD} sub="Sipariş"/>
