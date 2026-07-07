@@ -10,7 +10,6 @@ export const metadata: Metadata = {
     description: "Zeus WMS'ten anlık yurtiçi, ihracat ve mal kabul takibi. Canlı, otomatik güncellenen gün sonu raporu.",
     url: "https://basari-gun-sonu.vercel.app",
     siteName: "Başarı Otomotiv",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Gün Sonu İzleme — Başarı Otomotiv" }],
     locale: "tr_TR",
     type: "website",
   },
@@ -18,7 +17,6 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Gün Sonu İzleme — Başarı Otomotiv",
     description: "Zeus WMS'ten anlık yurtiçi, ihracat ve mal kabul takibi.",
-    images: ["/og-image.png"],
   },
 };
 
