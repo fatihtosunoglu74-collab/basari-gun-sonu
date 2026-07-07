@@ -191,14 +191,8 @@ export default function App(){
       // Uygulama sadece ?rapor= okuduğu için bu ek parametre veriyi etkilemez.
       const u=`${base}${base.includes("?")?"&":"?"}v=${Date.now()}`;
       const dateStr=new Date().toLocaleDateString("tr-TR");
-      // Emoji yerine sade metin başlıklar — bazı WhatsApp Desktop/Mac sürümlerinde
-      // emoji glifleri düzgün gelmiyor (◆ olarak görünüyor), o yüzden emoji'ye bağımlı kalmadık.
-      const msg=`*GÜN SONU RAPORU*\n_Başarı Otomotiv · ${dateStr}_\n\n`+
-        `Yurtiçi: *${yiRows.length}* sipariş\n`+
-        `İhracat: *${ihRows.length}* sevkiyat\n`+
-        `Mal Kabul: *${mkRows.length}* irsaliye\n\n`+
-        `Canlı takip:\n${u}\n\n`+
-        `_Link her açıldığında güncel veriyi gösterir._`;
+      // Görsel zaten başlığı taşıyor — mesaj metni sade: sadece tarih + link
+      const msg=`*Başarı Otomotiv · ${dateStr}*\n\n${u}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
     }
   }
