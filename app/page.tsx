@@ -184,13 +184,20 @@ export default function App(){
     else{id=await sbSave(p);if(id){setRaporId(id);const u=`${window.location.origin}?rapor=${id}`;setShareUrl(u);window.history.pushState({},"",`?rapor=${id}`);}}
     setSaving(false);
     if(id){
-      const u=shareUrl||`${window.location.origin}?rapor=${id}`;
+      const base=shareUrl||`${window.location.origin}?rapor=${id}`;
+      // WhatsApp aynı URL'i daha önce gördüyse önizlemeyi önbellekte tutuyor.
+      // Gün içi link sabit kaldığı için (aynı rapor id), her paylaşımda küçük bir
+      // "v=" parametresi ekleyerek WhatsApp'a "bu farklı bir adres, yeniden tara" dedirtiyoruz.
+      // Uygulama sadece ?rapor= okuduğu için bu ek parametre veriyi etkilemez.
+      const u=`${base}${base.includes("?")?"&":"?"}v=${Date.now()}`;
       const dateStr=new Date().toLocaleDateString("tr-TR");
-      const msg=`📊 *GÜN SONU RAPORU*\n_Başarı Otomotiv · ${dateStr}_\n\n`+
-        `🚚 Yurtiçi: *${yiRows.length}* sipariş\n`+
-        `🚢 İhracat: *${ihRows.length}* sevkiyat\n`+
-        `🏭 Mal Kabul: *${mkRows.length}* irsaliye\n\n`+
-        `🔗 Canlı takip:\n${u}\n\n`+
+      // Emoji yerine sade metin başlıklar — bazı WhatsApp Desktop/Mac sürümlerinde
+      // emoji glifleri düzgün gelmiyor (◆ olarak görünüyor), o yüzden emoji'ye bağımlı kalmadık.
+      const msg=`*GÜN SONU RAPORU*\n_Başarı Otomotiv · ${dateStr}_\n\n`+
+        `Yurtiçi: *${yiRows.length}* sipariş\n`+
+        `İhracat: *${ihRows.length}* sevkiyat\n`+
+        `Mal Kabul: *${mkRows.length}* irsaliye\n\n`+
+        `Canlı takip:\n${u}\n\n`+
         `_Link her açıldığında güncel veriyi gösterir._`;
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
     }
