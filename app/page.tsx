@@ -169,6 +169,17 @@ export default function App(){
       window.open(`https://wa.me/?text=${encodeURIComponent(`📋 *GÜN SONU RAPORU — ${new Date().toLocaleDateString("tr-TR")}*\n\nCanlı rapor:\n${u}`)}`,"_blank");}
   }
 
+  // Tek bir bekleyen müşteriyi anında destek ekibine bildir — gün sonunu beklemeden
+  function notifyDestek(r:YIRow){
+    const msg=`⚠️ *Sevkiyat Gecikme Bildirimi*\n\n🏬 Depo: ${r.depo}\n👤 Müşteri: ${r.musteri}\n`+
+      (r.sebep?`📦 Sebep: ${r.sebep}\n`:"")+
+      (r.sku?`◇ SKU: ${r.sku}\n`:"")+
+      (r.adet?`▤ Adet: ${r.adet.toLocaleString("tr-TR")}\n`:"")+
+      (r.not?`📝 Not: ${r.not}\n`:"")+
+      `\n📅 ${todayStr().split("-").reverse().join(".")}\n\nDestek ekibine bilgi verilmesi rica olunur.`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
+  }
+
   // ─── 3 sayfalı Gün Sonu Exceli parse ──────────────────────────────────────
   async function parseExcel(file:File){
     setStU("loading");
@@ -430,9 +441,9 @@ export default function App(){
 
               {/* Tablolar */}
               {tab==="yurtici"&&tableCard("📋","BEKLEYEN MÜŞTERİLER",fYi.length,
-                ["Depo","Müşteri","Çıkmama Sebebi","SKU","Adet","Not"],
+                ["Depo","Müşteri","Çıkmama Sebebi","SKU","Adet","Not",""],
                 fYi.length===0?(
-                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Bekleyen müşteri yok — tüm siparişler faturalandı ✅</td></tr>
+                  <tr><td colSpan={7} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Bekleyen müşteri yok — tüm siparişler faturalandı ✅</td></tr>
                 ):fYi.map((r,i)=>(
                   <tr key={i}>
                     <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
@@ -441,6 +452,12 @@ export default function App(){
                     <td style={td}>{r.sku||"—"}</td>
                     <td style={td}>{r.adet?r.adet.toLocaleString("tr-TR"):"—"}</td>
                     <td style={{...td,color:C.muted,fontWeight:600}}>{r.not||"—"}</td>
+                    <td style={{...td,textAlign:"center"}}>
+                      <button onClick={()=>notifyDestek(r)}
+                        style={{border:"none",borderRadius:8,background:"#25D366",color:"#fff",padding:"7px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:5,whiteSpace:"nowrap"}}>
+                        💬 Bildir
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
