@@ -32,6 +32,12 @@ function zeusType(durum:string):string{
   if(d.includes("İŞLEMDE")||d.includes("ISLEMDE")||d.includes("DEVAM"))return"yellow";
   return"red"; // Başlamadı, Silindi, tanımsız
 }
+// Ekranda gösterilecek etiket — Zeus'un ham "İşlemde" değeri yerine operasyonel terim
+function displayDurum(durum:string):string{
+  const t=zeusType(durum);
+  if(t==="yellow")return"Toplaması Devam Ediyor";
+  return durum;
+}
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 interface Row{depo:string;no:string;musteri:string;tip:string;tarih:string;durum:string;type:string;}
@@ -399,17 +405,17 @@ export default function App(){
               <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:18}}>
                 {tab==="yurtici"&&<>
                   <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-                  <SummaryCard type="yellow" title="İŞLEMDE"    val={yiI} sub="Sipariş" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                  <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR"    val={yiI} sub="Sipariş" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
                   <SummaryCard type="green"  title="TAMAMLANDI" val={yiT} sub="Sipariş" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
                 </>}
                 {tab==="ihracat"&&<>
                   <SummaryCard type="red"    title="BAŞLAMADI"  val={ihB} sub="Sevkiyat" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-                  <SummaryCard type="yellow" title="İŞLEMDE"    val={ihI} sub="Sevkiyat" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                  <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR"    val={ihI} sub="Sevkiyat" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
                   <SummaryCard type="green"  title="TAMAMLANDI" val={ihT} sub="Sevkiyat" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
                 </>}
                 {tab==="malKabul"&&<>
                   <SummaryCard type="red"    title="BAŞLAMADI"  val={mkB} sub="İrsaliye" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-                  <SummaryCard type="yellow" title="İŞLEMDE"    val={mkI} sub="İrsaliye" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                  <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR"    val={mkI} sub="İrsaliye" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
                   <SummaryCard type="green"  title="TAMAMLANDI" val={mkT} sub="İrsaliye" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
                 </>}
               </div>
@@ -425,7 +431,7 @@ export default function App(){
                     <td style={td}>{r.tip}</td>
                     <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
                     <td style={td}>{r.tarih}</td>
-                    <td style={td}><Badge type={r.type} label={r.durum}/></td>
+                    <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
                 ))
               )}
@@ -439,7 +445,7 @@ export default function App(){
                     <td style={td}>{r.musteri}</td>
                     <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
                     <td style={td}>{r.tarih}</td>
-                    <td style={td}><Badge type={r.type} label={r.durum}/></td>
+                    <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
                 ))
               )}
@@ -455,7 +461,7 @@ export default function App(){
                     <td style={td}>{r.tarih}</td>
                     <td style={td}>{r.cesit||"—"}</td>
                     <td style={td}>{r.adet.toLocaleString("tr-TR")}</td>
-                    <td style={td}><Badge type={r.type} label={r.durum}/></td>
+                    <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
                 ))
               )}
