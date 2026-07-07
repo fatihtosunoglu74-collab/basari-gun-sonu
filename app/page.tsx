@@ -266,17 +266,16 @@ export default function App(){
   }
 
   // ─── Filtreleme ────────────────────────────────────────────────────────────
-  const depolar=Array.from(new Set([...yiRows.map(r=>r.depo),...ihRows.map(r=>r.depo),...mkRows.map(r=>r.depo)])).filter(Boolean);
-  const byDepo=<T extends{depo:string}>(arr:T[])=>depoFiltre==="Tümü"?arr:arr.filter(r=>r.depo===depoFiltre);
-  const dYi=byDepo(yiRows), dIh=byDepo(ihRows), dMk=byDepo(mkRows);
-  // Özet kartları depo filtresine göre (durum filtresinden ETKİLENMEZ — sayılar sabit kalsın)
-  const fYi=durumFiltre?dYi.filter(r=>r.type===durumFiltre):dYi;
-  const fIh=durumFiltre?dIh.filter(r=>r.type===durumFiltre):dIh;
-  const fMk=durumFiltre?dMk.filter(r=>r.type===durumFiltre):dMk;
+  // Depo listesi artık sekmeye özel — Yurtiçi'nde sadece TEM.34 varken Mal Kabul'da ikisi de olabilir
+  const depolarYi=Array.from(new Set(yiRows.map(r=>r.depo))).filter(Boolean);
+  const depolarIh=Array.from(new Set(ihRows.map(r=>r.depo))).filter(Boolean);
+  const depolarMk=Array.from(new Set(mkRows.map(r=>r.depo))).filter(Boolean);
+  const activeDepolar=tab==="yurtici"?depolarYi:tab==="ihracat"?depolarIh:depolarMk;
 
-  const yiB=dYi.filter(r=>r.type==="red").length, yiI=dYi.filter(r=>r.type==="yellow").length, yiT=dYi.filter(r=>r.type==="green").length;
-  const ihB=dIh.filter(r=>r.type==="red").length, ihI=dIh.filter(r=>r.type==="yellow").length, ihT=dIh.filter(r=>r.type==="green").length;
-  const mkB=dMk.filter(r=>r.type==="red").length, mkI=dMk.filter(r=>r.type==="yellow").length, mkT=dMk.filter(r=>r.type==="green").length;
+  // Sağdaki GÜN SONU ÖZETİ her zaman TÜM depoların toplamı — depo filtresinden etkilenmez,
+  // böylece "Tümü" seçiliyken karışan bir toplam değil, her zaman net bir genel toplam görünür
+  const grand=<T extends{type:string}>(arr:T[])=>({b:arr.filter(r=>r.type==="red").length,y:arr.filter(r=>r.type==="yellow").length,g:arr.filter(r=>r.type==="green").length});
+  const yiG=grand(yiRows), ihG=grand(ihRows), mkG=grand(mkRows);
 
   const th:React.CSSProperties={padding:"12px 16px",textAlign:"left",fontSize:12,fontWeight:800,color:C.muted,borderBottom:`1px solid ${C.border}`,letterSpacing:0.2,whiteSpace:"nowrap"};
   const td:React.CSSProperties={padding:"13px 16px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${C.border}`,color:C.text};
@@ -293,13 +292,13 @@ export default function App(){
   };
   const currentRef=tab==="yurtici"?fileRefYi:tab==="ihracat"?fileRefIh:fileRefMk;
 
-  const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode)=>(
+  const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode,depotLabel?:string)=>(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
       <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:900,fontSize:15,color:C.text,letterSpacing:0.4}}>
           <span style={{fontSize:17}}>{icon}</span>{title}
         </div>
-        <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt{depoFiltre!=="Tümü"?` · ${depoFiltre}`:""}{durumFiltre?` · ${durumFiltre==="red"?"Başlamadı":durumFiltre==="yellow"?"İşlemde":"Tamamlandı"} filtresi aktif`:""}</span>
+        <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt{depotLabel?` · ${depotLabel}`:""}{durumFiltre?` · ${durumFiltre==="red"?"Başlamadı":durumFiltre==="yellow"?"İşlemde":"Tamamlandı"} filtresi aktif`:""}</span>
       </div>
       <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch" as any}}>
         <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
@@ -309,6 +308,44 @@ export default function App(){
       </div>
     </div>
   );
+
+  // Bir sekme için depo bazlı bölümleri üretir — 2+ depo varsa her biri ayrı başlık+kart+tablo ile,
+  // tek depo varsa (normal gün) hiç ek başlık göstermeden eskisi gibi tek blok
+  function renderDepotSections<T extends{depo:string;type:string}>(
+    allRows:T[],activeList:string[],subLabel:string,
+    icon:string,tableTitle:string,head:string[],colSpan:number,
+    renderRow:(r:T,i:number)=>React.ReactNode,emptyMsg:string
+  ){
+    const depotsToShow:(string|null)[]=activeList.length<=1?[null]:(depoFiltre==="Tümü"?activeList:[depoFiltre]);
+    return depotsToShow.map(depot=>{
+      const rowsForDepot=depot?allRows.filter(r=>r.depo===depot):allRows;
+      const rowsForTable=durumFiltre?rowsForDepot.filter(r=>r.type===durumFiltre):rowsForDepot;
+      const b=rowsForDepot.filter(r=>r.type==="red").length;
+      const y=rowsForDepot.filter(r=>r.type==="yellow").length;
+      const g=rowsForDepot.filter(r=>r.type==="green").length;
+      return(
+        <div key={depot??"tek"} style={{marginBottom:22}}>
+          {depot&&(
+            <div style={{display:"flex",alignItems:"center",gap:9,margin:"2px 0 12px",fontWeight:900,fontSize:14,color:C.navy,letterSpacing:0.4}}>
+              <span style={{width:9,height:9,borderRadius:"50%",background:depot==="KARTEPE"?C.yellow:C.green,display:"inline-block",flexShrink:0}}/>
+              🏬 {depot} DEPOSU
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:14}}>
+            <SummaryCard type="red"    title="BAŞLAMADI"  val={b} sub={subLabel} active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
+            <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR" val={y} sub={subLabel} active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+            <SummaryCard type="green"  title="TAMAMLANDI" val={g} sub={subLabel} active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
+          </div>
+          {tableCard(icon,tableTitle,rowsForTable.length,head,
+            rowsForTable.length===0
+              ?<tr><td colSpan={colSpan} style={{...td,textAlign:"center",color:C.muted,padding:24}}>{emptyMsg}</td></tr>
+              :rowsForTable.map(renderRow),
+            depot??undefined
+          )}
+        </div>
+      );
+    });
+  }
 
   return(
     <div style={{minHeight:"100vh",background:C.pageBg,fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif',color:C.text}}>
@@ -375,10 +412,10 @@ export default function App(){
           </div>
 
           {/* DEPO FİLTRE ÇUBUĞU */}
-          {depolar.length>1&&(
+          {activeDepolar.length>1&&(
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
               <span style={{fontSize:12,fontWeight:800,color:C.muted,letterSpacing:0.4}}>🏬 DEPO:</span>
-              {["Tümü",...depolar].map(d=>{
+              {["Tümü",...activeDepolar].map(d=>{
                 const act=depoFiltre===d;
                 return(
                   <button key={d} onClick={()=>setDepoFiltre(d)}
@@ -418,29 +455,9 @@ export default function App(){
 
             {/* SOL */}
             <div>
-              <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:18}}>
-                {tab==="yurtici"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-                  <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR"    val={yiI} sub="Sipariş" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={yiT} sub="Sipariş" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
-                </>}
-                {tab==="ihracat"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={ihB} sub="Sevkiyat" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-                  <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR"    val={ihI} sub="Sevkiyat" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={ihT} sub="Sevkiyat" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
-                </>}
-                {tab==="malKabul"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={mkB} sub="İrsaliye" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-                  <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR"    val={mkI} sub="İrsaliye" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={mkT} sub="İrsaliye" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
-                </>}
-              </div>
-
-              {tab==="yurtici"&&tableCard("📋","SİPARİŞ LİSTESİ",fYi.length,
-                ["Belge No","Müşteri","Gönderi Tipi","Depo","Tarih","Durum"],
-                fYi.length===0?(
-                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Excel yüklendikten sonra siparişler burada listelenir</td></tr>
-                ):fYi.map((r,i)=>(
+              {tab==="yurtici"&&renderDepotSections(yiRows,depolarYi,"Sipariş","📋","SİPARİŞ LİSTESİ",
+                ["Belge No","Müşteri","Gönderi Tipi","Depo","Tarih","Durum"],6,
+                (r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.musteri}</td>
@@ -449,13 +466,12 @@ export default function App(){
                     <td style={td}>{r.tarih}</td>
                     <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
-                ))
+                ),
+                "Excel yüklendikten sonra siparişler burada listelenir"
               )}
-              {tab==="ihracat"&&tableCard("🚢","İHRACAT SEVKİYAT LİSTESİ",fIh.length,
-                ["Belge No","Müşteri","Depo","Tarih","Durum"],
-                fIh.length===0?(
-                  <tr><td colSpan={5} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Excel yüklendikten sonra sevkiyatlar burada listelenir</td></tr>
-                ):fIh.map((r,i)=>(
+              {tab==="ihracat"&&renderDepotSections(ihRows,depolarIh,"Sevkiyat","🚢","İHRACAT SEVKİYAT LİSTESİ",
+                ["Belge No","Müşteri","Depo","Tarih","Durum"],5,
+                (r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.musteri}</td>
@@ -463,13 +479,12 @@ export default function App(){
                     <td style={td}>{r.tarih}</td>
                     <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
-                ))
+                ),
+                "Excel yüklendikten sonra sevkiyatlar burada listelenir"
               )}
-              {tab==="malKabul"&&tableCard("📦","İRSALİYE LİSTESİ",fMk.length,
-                ["Belge No","Firma","Depo","Tarih","Çeşit","Adet","Durum"],
-                fMk.length===0?(
-                  <tr><td colSpan={7} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Excel yüklendikten sonra irsaliyeler burada listelenir</td></tr>
-                ):fMk.map((r,i)=>(
+              {tab==="malKabul"&&renderDepotSections(mkRows,depolarMk,"İrsaliye","📦","İRSALİYE LİSTESİ",
+                ["Belge No","Firma","Depo","Tarih","Çeşit","Adet","Durum"],7,
+                (r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.firma}</td>
@@ -479,18 +494,19 @@ export default function App(){
                     <td style={td}>{r.adet.toLocaleString("tr-TR")}</td>
                     <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
-                ))
+                ),
+                "Excel yüklendikten sonra irsaliyeler burada listelenir"
               )}
             </div>
 
             {/* SAĞ */}
             <div>
-              {tab==="yurtici"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
-                ["Toplam Sipariş",fYi.length,"#fff"],["Başlamadı",yiB,"#FCA5A5"],["İşlemde",yiI,"#FCD34D"],["Tamamlandı",yiT,"#86EFAC"]]}/>}
-              {tab==="ihracat"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
-                ["Toplam Sevkiyat",fIh.length,"#fff"],["Başlamadı",ihB,"#FCA5A5"],["İşlemde",ihI,"#FCD34D"],["Tamamlandı",ihT,"#86EFAC"]]}/>}
-              {tab==="malKabul"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
-                ["Toplam İrsaliye",fMk.length,"#fff"],["Başlamadı",mkB,"#FCA5A5"],["İşlemde",mkI,"#FCD34D"],["Tamamlandı",mkT,"#86EFAC"]]}/>}
+              {tab==="yurtici"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
+                ["Toplam Sipariş",yiRows.length,"#fff"],["Başlamadı",yiG.b,"#FCA5A5"],["Toplamı Devam Ediyor",yiG.y,"#FCD34D"],["Tamamlandı",yiG.g,"#86EFAC"]]}/>}
+              {tab==="ihracat"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
+                ["Toplam Sevkiyat",ihRows.length,"#fff"],["Başlamadı",ihG.b,"#FCA5A5"],["Toplamı Devam Ediyor",ihG.y,"#FCD34D"],["Tamamlandı",ihG.g,"#86EFAC"]]}/>}
+              {tab==="malKabul"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
+                ["Toplam İrsaliye",mkRows.length,"#fff"],["Başlamadı",mkG.b,"#FCA5A5"],["Toplamı Devam Ediyor",mkG.y,"#FCD34D"],["Tamamlandı",mkG.g,"#86EFAC"]]}/>}
               <ContactCard/>
             </div>
           </div>
