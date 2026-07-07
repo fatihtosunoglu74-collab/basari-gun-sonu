@@ -72,6 +72,24 @@ function SummaryCard({type,title,val,sub,onClick,active}:{type:string;title:stri
     </div>
   );
 }
+function MobileCard({title,badge,meta}:{title:React.ReactNode;badge:React.ReactNode;meta:{label:string;value:React.ReactNode}[]}){
+  return(
+    <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:9}}>
+        <div style={{fontSize:14,fontWeight:800,color:C.text,lineHeight:1.3,flex:1}}>{title}</div>
+        <div style={{flexShrink:0}}>{badge}</div>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"3px 16px"}}>
+        {meta.map((m,i)=>(
+          <div key={i} style={{fontSize:12,color:C.muted}}>
+            <span style={{fontWeight:700,color:"#94A3B8"}}>{m.label}:</span> <span style={{fontWeight:600,color:C.text}}>{m.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ContactCard(){
   const rows=[
     {icon:"📍",text:"Akçaburgaz Mah. 3126. Sk. No: 10/1 DMN Plaza Kat:2 Esenyurt / İSTANBUL"},
@@ -320,7 +338,7 @@ export default function App(){
   };
   const currentRef=tab==="yurtici"?fileRefYi:tab==="ihracat"?fileRefIh:fileRefMk;
 
-  const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode,depotLabel?:string)=>(
+  const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode,depotLabel?:string,mobileList?:React.ReactNode)=>(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
       <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:900,fontSize:15,color:C.text,letterSpacing:0.4}}>
@@ -328,12 +346,16 @@ export default function App(){
         </div>
         <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt{depotLabel?` · ${depotLabel}`:""}{durumFiltre?` · ${durumFiltre==="red"?"Başlamadı":durumFiltre==="yellow"?"İşlemde":"Tamamlandı"} filtresi aktif`:""}</span>
       </div>
-      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch" as any}}>
-        <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
-          <thead><tr>{head.map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
-          <tbody>{body}</tbody>
-        </table>
-      </div>
+      {mobile&&mobileList?(
+        <div>{mobileList}</div>
+      ):(
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch" as any}}>
+          <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
+            <thead><tr>{head.map((h,i)=><th key={i} style={th}>{h}</th>)}</tr></thead>
+            <tbody>{body}</tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 
@@ -342,7 +364,8 @@ export default function App(){
   function renderDepotSections<T extends{depo:string;type:string}>(
     allRows:T[],activeList:string[],subLabel:string,
     icon:string,tableTitle:string,head:string[],colSpan:number,
-    renderRow:(r:T,i:number)=>React.ReactNode,emptyMsg:string,yellowLabel:string="Toplaması Devam Ediyor"
+    renderRow:(r:T,i:number)=>React.ReactNode,emptyMsg:string,yellowLabel:string="Toplaması Devam Ediyor",
+    renderMobileCard?:(r:T,i:number)=>React.ReactNode
   ){
     const depotsToShow:(string|null)[]=activeList.length<=1?[null]:(depoFiltre==="Tümü"?activeList:[depoFiltre]);
     const showGrandTotal=activeList.length>1&&depoFiltre==="Tümü";
@@ -387,7 +410,10 @@ export default function App(){
                 rowsForTable.length===0
                   ?<tr><td colSpan={colSpan} style={{...td,textAlign:"center",color:C.muted,padding:24}}>{emptyMsg}</td></tr>
                   :rowsForTable.map(renderRow),
-                depot??undefined
+                depot??undefined,
+                renderMobileCard?(rowsForTable.length===0
+                  ?<div style={{padding:24,textAlign:"center",color:C.muted,fontSize:13}}>{emptyMsg}</div>
+                  :rowsForTable.map(renderMobileCard)):undefined
               )}
             </div>
           );
@@ -516,7 +542,13 @@ export default function App(){
                     <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
                 ),
-                "Excel yüklendikten sonra siparişler burada listelenir"
+                "Excel yüklendikten sonra siparişler burada listelenir",
+                "Toplaması Devam Ediyor",
+                (r,i)=>(
+                  <MobileCard key={i} title={<>{r.musteri}<div style={{fontSize:11,color:C.muted,fontWeight:700,marginTop:2}}>{r.no}</div></>}
+                    badge={<Badge type={r.type} label={displayDurum(r.durum)}/>}
+                    meta={[{label:"Tip",value:r.tip},{label:"Depo",value:<Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/>},{label:"Tarih",value:r.tarih}]}/>
+                )
               )}
               {tab==="ihracat"&&renderDepotSections(ihRows,depolarIh,"Sevkiyat","🚢","İHRACAT SEVKİYAT LİSTESİ",
                 ["Belge No","Müşteri","Depo","Tarih","Durum"],5,
@@ -529,7 +561,13 @@ export default function App(){
                     <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
                   </tr>
                 ),
-                "Excel yüklendikten sonra sevkiyatlar burada listelenir"
+                "Excel yüklendikten sonra sevkiyatlar burada listelenir",
+                "Toplaması Devam Ediyor",
+                (r,i)=>(
+                  <MobileCard key={i} title={<>{r.musteri}<div style={{fontSize:11,color:C.muted,fontWeight:700,marginTop:2}}>{r.no}</div></>}
+                    badge={<Badge type={r.type} label={displayDurum(r.durum)}/>}
+                    meta={[{label:"Depo",value:<Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/>},{label:"Tarih",value:r.tarih}]}/>
+                )
               )}
               {tab==="malKabul"&&renderDepotSections(mkRows,depolarMk,"İrsaliye","📦","İRSALİYE LİSTESİ",
                 ["Belge No","Firma","Depo","Tarih","Çeşit","Adet","Durum"],7,
@@ -545,7 +583,12 @@ export default function App(){
                   </tr>
                 ),
                 "Excel yüklendikten sonra irsaliyeler burada listelenir",
-                "Mal Kabulü Devam Ediyor"
+                "Mal Kabulü Devam Ediyor",
+                (r,i)=>(
+                  <MobileCard key={i} title={<>{r.firma}<div style={{fontSize:11,color:C.muted,fontWeight:700,marginTop:2}}>{r.no}</div></>}
+                    badge={<Badge type={r.type} label={displayDurum(r.durum,"Mal Kabulü Devam Ediyor")}/>}
+                    meta={[{label:"Depo",value:<Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/>},{label:"Çeşit",value:r.cesit||"—"},{label:"Adet",value:r.adet.toLocaleString("tr-TR")},{label:"Tarih",value:r.tarih}]}/>
+                )
               )}
             </div>
 
