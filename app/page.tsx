@@ -33,9 +33,9 @@ function zeusType(durum:string):string{
   return"red"; // Başlamadı, Silindi, tanımsız
 }
 // Ekranda gösterilecek etiket — Zeus'un ham "İşlemde" değeri yerine operasyonel terim
-function displayDurum(durum:string):string{
+function displayDurum(durum:string,yellowLabel:string="Toplaması Devam Ediyor"):string{
   const t=zeusType(durum);
-  if(t==="yellow")return"Toplaması Devam Ediyor";
+  if(t==="yellow")return yellowLabel;
   return durum;
 }
 
@@ -323,7 +323,7 @@ export default function App(){
   function renderDepotSections<T extends{depo:string;type:string}>(
     allRows:T[],activeList:string[],subLabel:string,
     icon:string,tableTitle:string,head:string[],colSpan:number,
-    renderRow:(r:T,i:number)=>React.ReactNode,emptyMsg:string
+    renderRow:(r:T,i:number)=>React.ReactNode,emptyMsg:string,yellowLabel:string="Toplaması Devam Ediyor"
   ){
     const depotsToShow:(string|null)[]=activeList.length<=1?[null]:(depoFiltre==="Tümü"?activeList:[depoFiltre]);
     return depotsToShow.map(depot=>{
@@ -342,7 +342,7 @@ export default function App(){
           )}
           <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:14}}>
             <SummaryCard type="red"    title="BAŞLAMADI"  val={b} sub={subLabel} active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-            <SummaryCard type="yellow" title="TOPLAMASI DEVAM EDİYOR" val={y} sub={subLabel} active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+            <SummaryCard type="yellow" title={yellowLabel.toUpperCase()} val={y} sub={subLabel} active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
             <SummaryCard type="green"  title="TAMAMLANDI" val={g} sub={subLabel} active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
           </div>
           {tableCard(icon,tableTitle,rowsForTable.length,head,
@@ -501,21 +501,22 @@ export default function App(){
                     <td style={td}>{r.tarih}</td>
                     <td style={td}>{r.cesit||"—"}</td>
                     <td style={td}>{r.adet.toLocaleString("tr-TR")}</td>
-                    <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
+                    <td style={td}><Badge type={r.type} label={displayDurum(r.durum,"Mal Kabulü Devam Ediyor")}/></td>
                   </tr>
                 ),
-                "Excel yüklendikten sonra irsaliyeler burada listelenir"
+                "Excel yüklendikten sonra irsaliyeler burada listelenir",
+                "Mal Kabulü Devam Ediyor"
               )}
             </div>
 
             {/* SAĞ */}
             <div>
               {tab==="yurtici"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
-                ["Toplam Sipariş",yiRows.length,"#fff"],["Başlamadı",yiG.b,"#FCA5A5"],["Toplamı Devam Ediyor",yiG.y,"#FCD34D"],["Tamamlandı",yiG.g,"#86EFAC"]]}/>}
+                ["Toplam Sipariş",yiRows.length,"#fff"],["Başlamadı",yiG.b,"#FCA5A5"],["Toplaması Devam Ediyor",yiG.y,"#FCD34D"],["Tamamlandı",yiG.g,"#86EFAC"]]}/>}
               {tab==="ihracat"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
-                ["Toplam Sevkiyat",ihRows.length,"#fff"],["Başlamadı",ihG.b,"#FCA5A5"],["Toplamı Devam Ediyor",ihG.y,"#FCD34D"],["Tamamlandı",ihG.g,"#86EFAC"]]}/>}
+                ["Toplam Sevkiyat",ihRows.length,"#fff"],["Başlamadı",ihG.b,"#FCA5A5"],["Toplaması Devam Ediyor",ihG.y,"#FCD34D"],["Tamamlandı",ihG.g,"#86EFAC"]]}/>}
               {tab==="malKabul"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
-                ["Toplam İrsaliye",mkRows.length,"#fff"],["Başlamadı",mkG.b,"#FCA5A5"],["Toplamı Devam Ediyor",mkG.y,"#FCD34D"],["Tamamlandı",mkG.g,"#86EFAC"]]}/>}
+                ["Toplam İrsaliye",mkRows.length,"#fff"],["Başlamadı",mkG.b,"#FCA5A5"],["Mal Kabulü Devam Ediyor",mkG.y,"#FCD34D"],["Tamamlandı",mkG.g,"#86EFAC"]]}/>}
               <ContactCard/>
             </div>
           </div>
