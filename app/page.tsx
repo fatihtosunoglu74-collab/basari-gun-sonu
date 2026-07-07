@@ -345,34 +345,55 @@ export default function App(){
     renderRow:(r:T,i:number)=>React.ReactNode,emptyMsg:string,yellowLabel:string="Toplaması Devam Ediyor"
   ){
     const depotsToShow:(string|null)[]=activeList.length<=1?[null]:(depoFiltre==="Tümü"?activeList:[depoFiltre]);
-    return depotsToShow.map(depot=>{
-      const rowsForDepot=depot?allRows.filter(r=>r.depo===depot):allRows;
-      const rowsForTable=durumFiltre?rowsForDepot.filter(r=>r.type===durumFiltre):rowsForDepot;
-      const b=rowsForDepot.filter(r=>r.type==="red").length;
-      const y=rowsForDepot.filter(r=>r.type==="yellow").length;
-      const g=rowsForDepot.filter(r=>r.type==="green").length;
-      return(
-        <div key={depot??"tek"} style={{marginBottom:22}}>
-          {depot&&(
+    const showGrandTotal=activeList.length>1&&depoFiltre==="Tümü";
+    const grandB=allRows.filter(r=>r.type==="red").length;
+    const grandY=allRows.filter(r=>r.type==="yellow").length;
+    const grandG=allRows.filter(r=>r.type==="green").length;
+    return(
+      <>
+        {showGrandTotal&&(
+          <div style={{marginBottom:24,paddingBottom:20,borderBottom:`2px solid ${C.border}`}}>
             <div style={{display:"flex",alignItems:"center",gap:9,margin:"2px 0 12px",fontWeight:900,fontSize:14,color:C.navy,letterSpacing:0.4}}>
-              <span style={{width:9,height:9,borderRadius:"50%",background:depot==="KARTEPE"?C.yellow:C.green,display:"inline-block",flexShrink:0}}/>
-              🏬 {depot} DEPOSU
+              <span style={{width:9,height:9,borderRadius:"50%",background:C.navy,display:"inline-block",flexShrink:0}}/>
+              🏬 TÜM DEPOLAR — TOPLAM ({activeList.join(" + ")})
             </div>
-          )}
-          <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:14}}>
-            <SummaryCard type="red"    title="BAŞLAMADI"  val={b} sub={subLabel} active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
-            <SummaryCard type="yellow" title={yellowLabel.toUpperCase()} val={y} sub={subLabel} active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
-            <SummaryCard type="green"  title="TAMAMLANDI" val={g} sub={subLabel} active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
+            <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14}}>
+              <SummaryCard type="red"    title="BAŞLAMADI"  val={grandB} sub={subLabel} active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
+              <SummaryCard type="yellow" title={yellowLabel.toUpperCase()} val={grandY} sub={subLabel} active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+              <SummaryCard type="green"  title="TAMAMLANDI" val={grandG} sub={subLabel} active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
+            </div>
           </div>
-          {tableCard(icon,tableTitle,rowsForTable.length,head,
-            rowsForTable.length===0
-              ?<tr><td colSpan={colSpan} style={{...td,textAlign:"center",color:C.muted,padding:24}}>{emptyMsg}</td></tr>
-              :rowsForTable.map(renderRow),
-            depot??undefined
-          )}
-        </div>
-      );
-    });
+        )}
+        {depotsToShow.map(depot=>{
+          const rowsForDepot=depot?allRows.filter(r=>r.depo===depot):allRows;
+          const rowsForTable=durumFiltre?rowsForDepot.filter(r=>r.type===durumFiltre):rowsForDepot;
+          const b=rowsForDepot.filter(r=>r.type==="red").length;
+          const y=rowsForDepot.filter(r=>r.type==="yellow").length;
+          const g=rowsForDepot.filter(r=>r.type==="green").length;
+          return(
+            <div key={depot??"tek"} style={{marginBottom:22}}>
+              {depot&&(
+                <div style={{display:"flex",alignItems:"center",gap:9,margin:"2px 0 12px",fontWeight:900,fontSize:14,color:C.navy,letterSpacing:0.4}}>
+                  <span style={{width:9,height:9,borderRadius:"50%",background:depot==="KARTEPE"?C.yellow:C.green,display:"inline-block",flexShrink:0}}/>
+                  🏬 {depot} DEPOSU
+                </div>
+              )}
+              <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:14}}>
+                <SummaryCard type="red"    title="BAŞLAMADI"  val={b} sub={subLabel} active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
+                <SummaryCard type="yellow" title={yellowLabel.toUpperCase()} val={y} sub={subLabel} active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                <SummaryCard type="green"  title="TAMAMLANDI" val={g} sub={subLabel} active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
+              </div>
+              {tableCard(icon,tableTitle,rowsForTable.length,head,
+                rowsForTable.length===0
+                  ?<tr><td colSpan={colSpan} style={{...td,textAlign:"center",color:C.muted,padding:24}}>{emptyMsg}</td></tr>
+                  :rowsForTable.map(renderRow),
+                depot??undefined
+              )}
+            </div>
+          );
+        })}
+      </>
+    );
   }
 
   return(
