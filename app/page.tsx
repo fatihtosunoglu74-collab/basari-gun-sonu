@@ -219,15 +219,25 @@ export default function App(){
     setSaving(false);
     if(id){
       const base=shareUrl||`${window.location.origin}?rapor=${id}`;
-      // WhatsApp aynı URL'i daha önce gördüyse önizlemeyi önbellekte tutuyor.
-      // Gün içi link sabit kaldığı için (aynı rapor id), her paylaşımda küçük bir
-      // "v=" parametresi ekleyerek WhatsApp'a "bu farklı bir adres, yeniden tara" dedirtiyoruz.
-      // Uygulama sadece ?rapor= okuduğu için bu ek parametre veriyi etkilemez.
       const u=`${base}${base.includes("?")?"&":"?"}v=${Date.now()}`;
-      const dateStr=new Date().toLocaleDateString("tr-TR");
-      // Görsel zaten başlığı taşıyor — mesaj metni sade: sadece tarih + link
-      const msg=`*Başarı Otomotiv · ${dateStr}*\n\n${u}`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,"_blank");
+      const caption=`📊 *Başarı Otomotiv Gün Sonu Raporu*\nCanlı rapora ulaşmak için:\n${u}`;
+
+      // 1. ÖNCELİK: Cihazın kendi paylaşım menüsü (native share sheet) ile GERÇEK görsel dosyası paylaş.
+      // WhatsApp bu menüden seçilirse resmi fotoğraf olarak alır — küçük link kartı değil, büyük medya mesajı.
+      try{
+        const imgResp=await fetch("/opengraph-image.jpg");
+        const blob=await imgResp.blob();
+        const file=new File([blob],"gun-sonu-raporu.jpg",{type:"image/jpeg"});
+        const nav=navigator as any;
+        if(nav.canShare&&nav.canShare({files:[file]})){
+          await nav.share({files:[file],text:caption});
+          return;
+        }
+      }catch(e){/* kullanıcı paylaşımı iptal ettiyse de buraya düşer — sorun değil */}
+
+      // 2. YEDEK: Native paylaşım desteklenmiyorsa (çoğunlukla masaüstü) eski yönteme dön —
+      // en azından link + tarih metni WhatsApp'a hazır gelir, görsel elle eklenebilir.
+      window.open(`https://wa.me/?text=${encodeURIComponent(caption)}`,"_blank");
     }
   }
 
@@ -479,6 +489,11 @@ export default function App(){
                 );
               })}
             </div>
+            <a href="/opengraph-image.jpg" download="gun-sonu-raporu.jpg"
+              style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,background:"#fff",color:C.navy,border:`1.5px solid ${C.border}`,borderRadius:12,padding:mobile?"0 14px":"0 18px",height:mobile?48:62,fontWeight:800,fontSize:mobile?12:13,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",textDecoration:"none"}}
+              title="Masaüstünde native paylaşım yoksa görseli indirip WhatsApp'a elle ekleyebilirsin">
+              <span style={{fontSize:16}}>🖼️</span>{mobile?"":"Görseli İndir"}
+            </a>
             <button onClick={handleSave} disabled={saving}
               style={{display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 24px",height:mobile?48:62,fontWeight:900,fontSize:mobile?14:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
               <span style={{fontSize:18}}>{saving?"⏳":"🔗"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
