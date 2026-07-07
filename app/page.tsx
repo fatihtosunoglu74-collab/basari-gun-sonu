@@ -25,31 +25,23 @@ function normDepo(v:string):string{
   if(s.includes("ÇATALCA")||s.includes("CATALCA"))return"ÇATALCA";
   return sv(v).toUpperCase()||"TEM.34";
 }
+// Zeus artık her 3 raporda da aynı Durum sözlüğünü kullanıyor: Başlamadı / İşlemde / Bitti / (Silindi)
+function zeusType(durum:string):string{
+  const d=durum.toUpperCase();
+  if(d.includes("BİTTİ")||d.includes("BITTI")||d.includes("TAMAMLAN"))return"green";
+  if(d.includes("İŞLEMDE")||d.includes("ISLEMDE")||d.includes("DEVAM"))return"yellow";
+  return"red"; // Başlamadı, Silindi, tanımsız
+}
 
 // ─── Tipler ───────────────────────────────────────────────────────────────────
-interface YIRow{depo:string;musteri:string;sebep:string;sku:number;adet:number;not:string;}
-interface IHRow{depo:string;musteri:string;ilkTarih:string;cikisTarih:string;sebep:string;sku:number;adet:number;termin:string;durum:string;type:string;}
-interface MKRow{depo:string;no:string;firma:string;tarih:string;adet:number;durum:string;type:string;}
-type YITot=Record<string,{siparis:number;fatura:number}>;
+interface Row{depo:string;no:string;musteri:string;tip:string;tarih:string;durum:string;type:string;}
+interface MKRow{depo:string;no:string;firma:string;tarih:string;adet:number;cesit:number;durum:string;type:string;}
 type Tab="yurtici"|"ihracat"|"malKabul";
 type US="idle"|"loading"|"ok"|"err";
 
 const C={navy:"#0B2F78",navyDk:"#061F55",navyH:"#062B66",green:"#22C55E",red:"#EF4444",yellow:"#F59E0B",
   pageBg:"#F8FAFD",card:"#FFFFFF",border:"#E2E8F0",text:"#0F2A5F",muted:"#64748B",
   softRed:"#FEF2F2",softYellow:"#FFF7E8",softGreen:"#F0FDF4"};
-
-function ihType(durum:string):string{
-  const d=durum.toUpperCase();
-  if(d.includes("ZAMANINDA"))return"green";
-  if(d.includes("GEÇ")||d.includes("AŞTI")||d.includes("ACİL"))return"red";
-  return"yellow";
-}
-function mkType(durum:string):string{
-  const d=durum.toUpperCase();
-  if(d.includes("TAMAMLANDI")||d.includes("BITTI")||d.includes("BİTTİ"))return"green";
-  if(d.includes("İŞLEMDE")||d.includes("ISLEMDE")||d.includes("DEVAM"))return"yellow";
-  return"red";
-}
 
 // ─── Küçük bileşenler ─────────────────────────────────────────────────────────
 function Badge({type,label}:{type:string;label:string}){
@@ -59,8 +51,8 @@ function Badge({type,label}:{type:string;label:string}){
   return <span style={{display:"inline-flex",alignItems:"center",padding:"4px 11px",borderRadius:6,fontSize:11,fontWeight:900,letterSpacing:0.3,background:bg,color:cl,border:`1px solid ${br}`,whiteSpace:"nowrap"}}>{label}</span>;
 }
 function SummaryCard({type,title,val,sub}:{type:string;title:string;val:number;sub:string}){
-  const cl=type==="red"?C.red:type==="yellow"?C.yellow:type==="navy"?C.navy:C.green;
-  const ic=type==="red"?"📋":type==="yellow"?"🕐":type==="navy"?"📦":"✓";
+  const cl=type==="red"?C.red:type==="yellow"?C.yellow:C.green;
+  const ic=type==="red"?"📋":type==="yellow"?"🕐":"✓";
   return(
     <div style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"20px 24px",display:"flex",alignItems:"center",gap:18,boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
       <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${cl}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:type==="green"?30:26,color:cl,background:`${cl}0D`,flexShrink:0,fontWeight:900}}>{ic}</div>
@@ -91,14 +83,14 @@ function ContactCard(){
     </div>
   );
 }
-function DayEndSummary({title,rows}:{title:string;rows:[string,number|string,string][]}){
+function DayEndSummary({title,rows}:{title:string;rows:[string,number,string][]}){
   return(
     <div style={{background:`linear-gradient(160deg,${C.navyH} 0%,${C.navy} 100%)`,borderRadius:14,padding:"20px",color:"#fff",marginBottom:14,boxShadow:"0 10px 30px rgba(6,31,85,0.25)"}}>
       <div style={{fontWeight:900,fontSize:14,letterSpacing:0.5,marginBottom:12}}>{title}</div>
       {rows.map(([l,v,c],i)=>(
         <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<rows.length-1?"1px solid rgba(255,255,255,0.12)":"none"}}>
           <span style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.85)"}}>{l}</span>
-          <span style={{fontSize:16,fontWeight:900,color:c}}>{typeof v==="number"?v.toLocaleString("tr-TR"):v}</span>
+          <span style={{fontSize:16,fontWeight:900,color:c}}>{v.toLocaleString("tr-TR")}</span>
         </div>
       ))}
       <div style={{marginTop:14,display:"flex",justifyContent:"space-around",fontSize:30,opacity:0.18,filter:"grayscale(1) brightness(3)"}}>
@@ -113,13 +105,14 @@ export default function App(){
   const [tab,setTab]=useState<Tab>("yurtici");
   const [mobile,setMobile]=useState(false);
   const [depoFiltre,setDepoFiltre]=useState("Tümü");
-  const [yiTot,setYiTot]=useState<YITot>({});
-  const [yiRows,setYiRows]=useState<YIRow[]>([]);
-  const [ihRows,setIhRows]=useState<IHRow[]>([]);
+  const [yiRows,setYiRows]=useState<Row[]>([]);
+  const [ihRows,setIhRows]=useState<Row[]>([]);
   const [mkRows,setMkRows]=useState<MKRow[]>([]);
-  const [stU,setStU]=useState<US>("idle");
-  const [msgU,setMsgU]=useState("");
-  const fileRef=useRef<HTMLInputElement>(null);
+  const [stU,setStU]=useState<Record<Tab,US>>({yurtici:"idle",ihracat:"idle",malKabul:"idle"});
+  const [msgU,setMsgU]=useState<Record<Tab,string>>({yurtici:"",ihracat:"",malKabul:""});
+  const fileRefYi=useRef<HTMLInputElement>(null);
+  const fileRefIh=useRef<HTMLInputElement>(null);
+  const fileRefMk=useRef<HTMLInputElement>(null);
   const [raporId,setRaporId]=useState<string|null>(null);
   const [saving,setSaving]=useState(false);
   const [shareUrl,setShareUrl]=useState("");
@@ -147,8 +140,8 @@ export default function App(){
     const d=await sbLoad(id);
     if(d){
       const yr=d.yurtici_rows;
-      if(yr&&!Array.isArray(yr)){setYiTot(yr.totals??{});setYiRows(yr.rows??[]);}
-      else if(Array.isArray(yr))setYiRows(yr);
+      if(Array.isArray(yr))setYiRows(yr);
+      else if(yr?.rows)setYiRows(yr.rows);
       if(Array.isArray(d.ihracat_rows))setIhRows(d.ihracat_rows);
       if(Array.isArray(d.malkabul_rows))setMkRows(d.malkabul_rows);
       setLastRefresh(new Date());
@@ -157,10 +150,9 @@ export default function App(){
 
   async function handleSave(){
     setSaving(true);
-    const sumS=Object.values(yiTot).reduce((s,t)=>s+t.siparis,0);
-    const sumF=Object.values(yiTot).reduce((s,t)=>s+t.fatura,0);
-    const p={tarih:todayStr(),yurtici_siparis:sumS,yurtici_fatura:sumF,
-      yurtici_rows:{totals:yiTot,rows:yiRows},ihracat_rows:ihRows,malkabul_rows:mkRows};
+    const p={tarih:todayStr(),
+      yurtici_siparis:yiRows.length,yurtici_fatura:yiRows.filter(r=>r.type==="green").length,
+      yurtici_rows:yiRows,ihracat_rows:ihRows,malkabul_rows:mkRows};
     let id=raporId;
     if(id){await sbUpdate(id,p);}
     else{id=await sbSave(p);if(id){setRaporId(id);const u=`${window.location.origin}?rapor=${id}`;setShareUrl(u);window.history.pushState({},"",`?rapor=${id}`);}}
@@ -169,110 +161,92 @@ export default function App(){
       window.open(`https://wa.me/?text=${encodeURIComponent(`📋 *GÜN SONU RAPORU — ${new Date().toLocaleDateString("tr-TR")}*\n\nCanlı rapor:\n${u}`)}`,"_blank");}
   }
 
-  // ─── 3 sayfalı Gün Sonu Exceli parse ──────────────────────────────────────
-  async function parseExcel(file:File){
-    setStU("loading");
+  // ─── Ortak parser: Yurtiçi & İhracat — Firma|Depo|BelgeNo|Cari|Gönderi Tipi|Tarih|Durum
+  async function parseSimple(file:File,target:"yurtici"|"ihracat"){
+    setStU(s=>({...s,[target]:"loading"}));
     try{
       const XLSX=await import("xlsx");
       const wb=XLSX.read(await file.arrayBuffer(),{cellDates:true});
-      const findSheet=(k:string)=>wb.SheetNames.find(n=>n.toLowerCase().includes(k));
-      const snYi=findSheet("yurt"),snIh=findSheet("ihracat")??findSheet("İhracat".toLowerCase()),snMk=findSheet("mal");
-      if(!snYi&&!snIh&&!snMk){setMsgU("3 sayfalı Gün Sonu şablonu bulunamadı");setStU("err");return;}
+      const ws=wb.Sheets["data"]??wb.Sheets[wb.SheetNames[0]];
+      const raw:any[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Firma"));
+      const h=hi>=0?raw[hi]:raw[0];
+      const col=(k:string)=>h.findIndex((c:any)=>sv(c)===k);
+      const iDep=col("Depo"),iBno=col("BelgeNo"),iCari=col("Cari"),iTip=col("Gönderi Tipi"),iTar=col("Tarih"),iDur=col("Durum");
 
-      const rowsOf=(sn:string)=>XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:""}) as any[][];
-
-      // ── Depo tespiti: Mal Kabul sayfasındaki Depo kolonundan
       let fileDepo="TEM.34";
-      if(snMk){
-        const raw=rowsOf(snMk);
-        const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Firma"));
-        if(hi>=0){
-          const iDep=raw[hi].findIndex((c:any)=>sv(c)==="Depo");
-          const cnt:Record<string,number>={};
-          for(let i=hi+1;i<raw.length;i++){const d=normDepo(sv(raw[i][iDep>=0?iDep:1]));if(d){cnt[d]=(cnt[d]||0)+1;}}
-          const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
-          if(top)fileDepo=top[0];
-        }
+      const cnt:Record<string,number>={};
+      for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
+        const r=raw[i];if(!sv(r[iCari>=0?iCari:3]))continue;
+        const d=normDepo(sv(r[iDep>=0?iDep:1]));if(d)cnt[d]=(cnt[d]||0)+1;
       }
+      const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+      if(top)fileDepo=top[0];
 
-      // ── Yurtiçi: SİPARİŞ SAYISI | FATURA EDİLEN | KALAN | MÜŞTERİ | SEBEP | SKU | ADET | NOT
-      if(snYi){
-        const raw=rowsOf(snYi);
-        const hi=raw.findIndex(r=>sv(r[0]).includes("SİPARİŞ SAYISI"));
-        if(hi>=0){
-          let sip=0,fat=0;
-          const rows:YIRow[]=[];
-          for(let i=hi+1;i<raw.length;i++){
-            const r=raw[i];
-            if(nn(r[0])>0)sip=nn(r[0]);
-            if(nn(r[1])>0)fat=nn(r[1]);
-            const mus=sv(r[3]);
-            if(mus&&!mus.includes("AÇIKLAMA")){
-              rows.push({depo:fileDepo,musteri:mus,sebep:sv(r[4]),sku:nn(r[5]),adet:nn(r[6]),not:sv(r[7])});
-            }
-          }
-          setYiTot(t=>({...t,[fileDepo]:{siparis:sip,fatura:fat}}));
-          setYiRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
-        }
+      const rows:Row[]=[];
+      for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
+        const r=raw[i];const mus=sv(r[iCari>=0?iCari:3]);if(!mus)continue;
+        const durum=sv(r[iDur>=0?iDur:6])||"Başlamadı";
+        rows.push({depo:normDepo(sv(r[iDep>=0?iDep:1]))||fileDepo,no:sv(r[iBno>=0?iBno:2])||("BLG-"+Math.random().toString(36).slice(2,8)),
+          musteri:mus,tip:sv(r[iTip>=0?iTip:4])||"—",tarih:xd(r[iTar>=0?iTar:5]),durum,type:zeusType(durum)});
       }
+      if(target==="yurtici")setYiRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+      else setIhRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+      setMsgU(m=>({...m,[target]:`${fileDepo} · ${rows.length} kayıt yüklendi`}));
+      setStU(s=>({...s,[target]:"ok"}));
+    }catch{
+      setMsgU(m=>({...m,[target]:"Dosya okunamadı"}));
+      setStU(s=>({...s,[target]:"err"}));
+    }
+  }
 
-      // ── İhracat: ...MÜŞTERİ(3) İLK TARİH(4) ÇIKIŞ(5) SEBEP(6) SKU(7) ADET(8) SON TERMİN(10) TERMİN DURUMU(12)
-      if(snIh){
-        const raw=rowsOf(snIh);
-        const hi=raw.findIndex(r=>sv(r[0]).includes("SİPARİŞ SAYISI"));
-        if(hi>=0){
-          const rows:IHRow[]=[];
-          for(let i=hi+1;i<raw.length;i++){
-            const r=raw[i];const mus=sv(r[3]);
-            if(!mus||mus.includes("AÇIKLAMA"))continue;
-            const durum=sv(r[12])||sv(r[14])||"TERMİN İÇİNDE";
-            rows.push({depo:fileDepo,musteri:mus,ilkTarih:xd(r[4]),cikisTarih:xd(r[5]),sebep:sv(r[6]),
-              sku:nn(r[7]),adet:nn(r[8]),termin:xd(r[10]),durum,type:ihType(durum)});
-          }
-          setIhRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
-        }
+  // ─── Mal Kabul parser — Firma|Depo|BelgeNo|BelgeNo2|Tarih|Cari|Cari İsmi|Adet|Çeşit|Durum
+  async function parseMalKabul(file:File){
+    setStU(s=>({...s,malKabul:"loading"}));
+    try{
+      const XLSX=await import("xlsx");
+      const wb=XLSX.read(await file.arrayBuffer(),{cellDates:true});
+      const ws=wb.Sheets["data"]??wb.Sheets[wb.SheetNames[0]];
+      const raw:any[][]=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+      const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Firma"));
+      const h=hi>=0?raw[hi]:raw[0];
+      const col=(k:string)=>h.findIndex((c:any)=>sv(c)===k);
+      const iDep=col("Depo"),iBno=col("BelgeNo"),iTar=col("Tarih"),iCariIsim=col("Cari İsmi"),iCari=col("Cari"),iAdet=col("Adet"),iCesit=col("Çeşit"),iDur=col("Durum");
+      const iFirCol=iCariIsim>=0?iCariIsim:(iCari>=0?iCari:5);
+
+      let fileDepo="TEM.34";
+      const cnt:Record<string,number>={};
+      for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
+        const r=raw[i];if(!sv(r[iFirCol]))continue;
+        const d=normDepo(sv(r[iDep>=0?iDep:1]));if(d)cnt[d]=(cnt[d]||0)+1;
       }
+      const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+      if(top)fileDepo=top[0];
 
-      // ── Mal Kabul: Firma | Depo | BelgeNo | (BelgeNo2) | Tarih | Cari | Adet | Durum
-      if(snMk){
-        const raw=rowsOf(snMk);
-        const hi=raw.findIndex(r=>r.some((c:any)=>sv(c)==="Firma"));
-        if(hi>=0){
-          const h=raw[hi];
-          const col=(k:string)=>h.findIndex((c:any)=>sv(c)===k);
-          const iF=col("Firma"),iD=col("Depo"),iB=col("BelgeNo"),iT=col("Tarih"),iA=col("Adet"),iDu=col("Durum");
-          const rows:MKRow[]=[];
-          for(let i=hi+1;i<raw.length;i++){
-            const r=raw[i];const fir=sv(r[iF>=0?iF:0]);if(!fir)continue;
-            const durum=sv(r[iDu>=0?iDu:7]).toUpperCase()||"BAŞLAMADI";
-            rows.push({depo:normDepo(sv(r[iD>=0?iD:1]))||fileDepo,no:sv(r[iB>=0?iB:2]),firma:fir,
-              tarih:xd(r[iT>=0?iT:4]),adet:nn(r[iA>=0?iA:6]),durum,type:mkType(durum)});
-          }
-          setMkRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
-        }
+      const rows:MKRow[]=[];
+      for(let i=(hi>=0?hi+1:1);i<raw.length;i++){
+        const r=raw[i];const fir=sv(r[iFirCol]);if(!fir)continue;
+        const durum=sv(r[iDur>=0?iDur:9])||"Başlamadı";
+        rows.push({depo:normDepo(sv(r[iDep>=0?iDep:1]))||fileDepo,no:sv(r[iBno>=0?iBno:2]),firma:fir,
+          tarih:xd(r[iTar>=0?iTar:4]),adet:nn(r[iAdet>=0?iAdet:7]),cesit:nn(r[iCesit>=0?iCesit:8]),durum,type:zeusType(durum)});
       }
-
-      setMsgU(`${fileDepo} verileri yüklendi`);
-      setStU("ok");
-      setDepoFiltre("Tümü");
-    }catch(e){setMsgU("Dosya okunamadı");setStU("err");}
+      setMkRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+      setMsgU(m=>({...m,malKabul:`${fileDepo} · ${rows.length} irsaliye yüklendi`}));
+      setStU(s=>({...s,malKabul:"ok"}));
+    }catch{
+      setMsgU(m=>({...m,malKabul:"Dosya okunamadı"}));
+      setStU(s=>({...s,malKabul:"err"}));
+    }
   }
 
   // ─── Filtreleme ────────────────────────────────────────────────────────────
-  const depolar=Array.from(new Set([...Object.keys(yiTot),...yiRows.map(r=>r.depo),...ihRows.map(r=>r.depo),...mkRows.map(r=>r.depo)])).filter(Boolean);
+  const depolar=Array.from(new Set([...yiRows.map(r=>r.depo),...ihRows.map(r=>r.depo),...mkRows.map(r=>r.depo)])).filter(Boolean);
   const fYi=depoFiltre==="Tümü"?yiRows:yiRows.filter(r=>r.depo===depoFiltre);
   const fIh=depoFiltre==="Tümü"?ihRows:ihRows.filter(r=>r.depo===depoFiltre);
   const fMk=depoFiltre==="Tümü"?mkRows:mkRows.filter(r=>r.depo===depoFiltre);
 
-  // Yurtiçi toplamları (filtreye göre)
-  const totKeys=depoFiltre==="Tümü"?Object.keys(yiTot):[depoFiltre];
-  const totS=totKeys.reduce((s,k)=>s+(yiTot[k]?.siparis||0),0);
-  const totF=totKeys.reduce((s,k)=>s+(yiTot[k]?.fatura||0),0);
-  const totK=totS-totF;
-
-  // İhracat özet
-  const ihZ=fIh.filter(r=>r.type==="green").length, ihR2=fIh.filter(r=>r.type==="yellow").length, ihG=fIh.filter(r=>r.type==="red").length;
-  // Mal kabul özet
+  const yiB=fYi.filter(r=>r.type==="red").length, yiI=fYi.filter(r=>r.type==="yellow").length, yiT=fYi.filter(r=>r.type==="green").length;
+  const ihB=fIh.filter(r=>r.type==="red").length, ihI=fIh.filter(r=>r.type==="yellow").length, ihT=fIh.filter(r=>r.type==="green").length;
   const mkB=fMk.filter(r=>r.type==="red").length, mkI=fMk.filter(r=>r.type==="yellow").length, mkT=fMk.filter(r=>r.type==="green").length;
 
   const th:React.CSSProperties={padding:"12px 16px",textAlign:"left",fontSize:12,fontWeight:800,color:C.muted,borderBottom:`1px solid ${C.border}`,letterSpacing:0.2,whiteSpace:"nowrap"};
@@ -283,6 +257,12 @@ export default function App(){
     {id:"ihracat",label:"İhracat",icon:"🚢"},
     {id:"malKabul",label:"Mal Kabul",icon:"🏭"},
   ];
+  const UPLOAD:{[k in Tab]:{title:string;sub:string}}={
+    yurtici: {title:"Yurtiçi Excel Dosyası Yükle",  sub:"Zeus'tan aldığın yurtiçi sipariş raporunu yükle."},
+    ihracat: {title:"İhracat Excel Dosyası Yükle",  sub:"Zeus'tan aldığın ihracat sipariş raporunu yükle."},
+    malKabul:{title:"Mal Kabul Excel Dosyası Yükle",sub:"Zeus'tan aldığın irsaliye raporunu yükle."},
+  };
+  const currentRef=tab==="yurtici"?fileRefYi:tab==="ihracat"?fileRefIh:fileRefMk;
 
   const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode)=>(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
@@ -366,7 +346,7 @@ export default function App(){
           </div>
 
           {/* DEPO FİLTRE ÇUBUĞU */}
-          {depolar.length>0&&(
+          {depolar.length>1&&(
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
               <span style={{fontSize:12,fontWeight:800,color:C.muted,letterSpacing:0.4}}>🏬 DEPO:</span>
               {["Tümü",...depolar].map(d=>{
@@ -383,24 +363,24 @@ export default function App(){
             </div>
           )}
 
-          {/* UPLOAD BAR */}
-          <div style={{background:"#fff",border:`1px solid ${stU==="ok"?"#BBF7D0":stU==="err"?"#FECACA":C.border}`,borderRadius:14,padding:mobile?"12px 14px":"14px 20px",display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",gap:mobile?10:0,justifyContent:"space-between",marginBottom:18,boxShadow:"0 4px 14px rgba(11,47,120,0.04)"}}>
+          {/* UPLOAD BAR — sekmeye özel */}
+          <div style={{background:"#fff",border:`1px solid ${stU[tab]==="ok"?"#BBF7D0":stU[tab]==="err"?"#FECACA":C.border}`,borderRadius:14,padding:mobile?"12px 14px":"14px 20px",display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",gap:mobile?10:0,justifyContent:"space-between",marginBottom:18,boxShadow:"0 4px 14px rgba(11,47,120,0.04)"}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
               <div style={{width:48,height:48,borderRadius:12,background:"#E7F6EC",border:"1px solid #C6E9D2",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <span style={{color:"#1D6F42",fontWeight:900,fontSize:20,fontFamily:"Georgia,serif"}}>X</span>
               </div>
               <div>
                 <div style={{fontWeight:900,fontSize:15,color:C.text}}>
-                  {stU==="ok"?`✅ ${msgU}`:stU==="err"?`❌ ${msgU}`:"Gün Sonu Exceli Yükle"}
+                  {stU[tab]==="ok"?`✅ ${msgU[tab]}`:stU[tab]==="err"?`❌ ${msgU[tab]}`:UPLOAD[tab].title}
                 </div>
                 <div style={{fontSize:12,color:C.muted,fontWeight:600,marginTop:2}}>
-                  {stU==="ok"?"Diğer deponun dosyasını da yükleyebilirsiniz":"3 sayfalı şablon — TEM.34 ve Kartepe dosyalarını ayrı ayrı yükleyin, depo otomatik tanınır"}
+                  {stU[tab]==="ok"?"Değiştirmek için tekrar Excel seçebilirsiniz":UPLOAD[tab].sub}
                 </div>
               </div>
             </div>
-            <button onClick={()=>fileRef.current?.click()}
+            <button onClick={()=>currentRef.current?.click()}
               style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,border:`1.5px solid ${C.navy}`,color:C.navy,background:"#fff",borderRadius:11,padding:"11px 22px",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
-              <span>⇧</span>{stU==="loading"?"Yükleniyor...":"Excel Seç"}
+              <span>⇧</span>{stU[tab]==="loading"?"Yükleniyor...":"Excel Seç"}
             </button>
           </div>
 
@@ -409,17 +389,16 @@ export default function App(){
 
             {/* SOL */}
             <div>
-              {/* Özet kartları */}
               <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:18}}>
                 {tab==="yurtici"&&<>
-                  <SummaryCard type="navy"  title="TOPLAM SİPARİŞ" val={totS} sub="Sipariş"/>
-                  <SummaryCard type="green" title="KESİLEN FATURA" val={totF} sub="Fatura"/>
-                  <SummaryCard type={totK>0?"red":"green"} title="KALAN SİPARİŞ" val={totK} sub="Sipariş"/>
+                  <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş"/>
+                  <SummaryCard type="yellow" title="İŞLEMDE"    val={yiI} sub="Sipariş"/>
+                  <SummaryCard type="green"  title="TAMAMLANDI" val={yiT} sub="Sipariş"/>
                 </>}
                 {tab==="ihracat"&&<>
-                  <SummaryCard type="green"  title="ZAMANINDA" val={ihZ} sub="Sevkiyat"/>
-                  <SummaryCard type="yellow" title="TERMİN İÇİNDE" val={ihR2} sub="Sevkiyat"/>
-                  <SummaryCard type="red"    title="GECİKEN / AŞAN" val={ihG} sub="Sevkiyat"/>
+                  <SummaryCard type="red"    title="BAŞLAMADI"  val={ihB} sub="Sevkiyat"/>
+                  <SummaryCard type="yellow" title="İŞLEMDE"    val={ihI} sub="Sevkiyat"/>
+                  <SummaryCard type="green"  title="TAMAMLANDI" val={ihT} sub="Sevkiyat"/>
                 </>}
                 {tab==="malKabul"&&<>
                   <SummaryCard type="red"    title="BAŞLAMADI"  val={mkB} sub="İrsaliye"/>
@@ -428,49 +407,46 @@ export default function App(){
                 </>}
               </div>
 
-              {/* Tablolar */}
-              {tab==="yurtici"&&tableCard("📋","BEKLEYEN MÜŞTERİLER",fYi.length,
-                ["Depo","Müşteri","Çıkmama Sebebi","SKU","Adet","Not"],
+              {tab==="yurtici"&&tableCard("📋","SİPARİŞ LİSTESİ",fYi.length,
+                ["Belge No","Müşteri","Gönderi Tipi","Depo","Tarih","Durum"],
                 fYi.length===0?(
-                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Bekleyen müşteri yok — tüm siparişler faturalandı ✅</td></tr>
+                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Excel yüklendikten sonra siparişler burada listelenir</td></tr>
                 ):fYi.map((r,i)=>(
                   <tr key={i}>
+                    <td style={{...td,fontWeight:900}}>{r.no}</td>
+                    <td style={td}>{r.musteri}</td>
+                    <td style={td}>{r.tip}</td>
                     <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
-                    <td style={{...td,fontWeight:800}}>{r.musteri}</td>
-                    <td style={td}>{r.sebep?<Badge type="yellow" label={r.sebep}/>:"—"}</td>
-                    <td style={td}>{r.sku||"—"}</td>
-                    <td style={td}>{r.adet?r.adet.toLocaleString("tr-TR"):"—"}</td>
-                    <td style={{...td,color:C.muted,fontWeight:600}}>{r.not||"—"}</td>
+                    <td style={td}>{r.tarih}</td>
+                    <td style={td}><Badge type={r.type} label={r.durum}/></td>
                   </tr>
                 ))
               )}
               {tab==="ihracat"&&tableCard("🚢","İHRACAT SEVKİYAT LİSTESİ",fIh.length,
-                ["Depo","Müşteri","İlk Sipariş","Çıkış","SKU","Adet","Son Termin","Durum"],
+                ["Belge No","Müşteri","Depo","Tarih","Durum"],
                 fIh.length===0?(
-                  <tr><td colSpan={8} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Kayıt yok</td></tr>
+                  <tr><td colSpan={5} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Excel yüklendikten sonra sevkiyatlar burada listelenir</td></tr>
                 ):fIh.map((r,i)=>(
                   <tr key={i}>
+                    <td style={{...td,fontWeight:900}}>{r.no}</td>
+                    <td style={td}>{r.musteri}</td>
                     <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
-                    <td style={{...td,fontWeight:800}}>{r.musteri}</td>
-                    <td style={td}>{r.ilkTarih||"—"}</td>
-                    <td style={td}>{r.cikisTarih||"—"}</td>
-                    <td style={td}>{r.sku||"—"}</td>
-                    <td style={td}>{r.adet?r.adet.toLocaleString("tr-TR"):"—"}</td>
-                    <td style={{...td,fontWeight:900}}>{r.termin||"—"}</td>
+                    <td style={td}>{r.tarih}</td>
                     <td style={td}><Badge type={r.type} label={r.durum}/></td>
                   </tr>
                 ))
               )}
               {tab==="malKabul"&&tableCard("📦","İRSALİYE LİSTESİ",fMk.length,
-                ["Belge No","Firma","Depo","Tarih","Adet","Durum"],
+                ["Belge No","Firma","Depo","Tarih","Çeşit","Adet","Durum"],
                 fMk.length===0?(
-                  <tr><td colSpan={6} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Kayıt yok</td></tr>
+                  <tr><td colSpan={7} style={{...td,textAlign:"center",color:C.muted,padding:24}}>Excel yüklendikten sonra irsaliyeler burada listelenir</td></tr>
                 ):fMk.map((r,i)=>(
                   <tr key={i}>
                     <td style={{...td,fontWeight:900}}>{r.no}</td>
                     <td style={td}>{r.firma}</td>
                     <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
                     <td style={td}>{r.tarih}</td>
+                    <td style={td}>{r.cesit||"—"}</td>
                     <td style={td}>{r.adet.toLocaleString("tr-TR")}</td>
                     <td style={td}><Badge type={r.type} label={r.durum}/></td>
                   </tr>
@@ -481,11 +457,9 @@ export default function App(){
             {/* SAĞ */}
             <div>
               {tab==="yurtici"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
-                ["Toplam Sipariş",totS,"#fff"],["Kesilen Fatura",totF,"#86EFAC"],["Kalan Sipariş",totK,totK>0?"#FCA5A5":"#86EFAC"],
-                ...(depoFiltre==="Tümü"?depolar.map(d=>[`— ${d}`,`${yiTot[d]?.siparis||0} / ${yiTot[d]?.fatura||0}`,"#FCD34D"] as [string,string,string]):[])
-              ]}/>}
+                ["Toplam Sipariş",fYi.length,"#fff"],["Başlamadı",yiB,"#FCA5A5"],["İşlemde",yiI,"#FCD34D"],["Tamamlandı",yiT,"#86EFAC"]]}/>}
               {tab==="ihracat"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
-                ["Toplam Sevkiyat",fIh.length,"#fff"],["Zamanında",ihZ,"#86EFAC"],["Termin İçinde",ihR2,"#FCD34D"],["Geciken",ihG,"#FCA5A5"]]}/>}
+                ["Toplam Sevkiyat",fIh.length,"#fff"],["Başlamadı",ihB,"#FCA5A5"],["İşlemde",ihI,"#FCD34D"],["Tamamlandı",ihT,"#86EFAC"]]}/>}
               {tab==="malKabul"&&<DayEndSummary title={`GÜN SONU ÖZETİ${depoFiltre!=="Tümü"?" · "+depoFiltre:""}`} rows={[
                 ["Toplam İrsaliye",fMk.length,"#fff"],["Başlamadı",mkB,"#FCA5A5"],["İşlemde",mkI,"#FCD34D"],["Tamamlandı",mkT,"#86EFAC"]]}/>}
               <ContactCard/>
@@ -494,8 +468,12 @@ export default function App(){
         </div>
       </div>
 
-      <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}}
-        onChange={e=>{const f=e.target.files?.[0];if(f)parseExcel(f);e.target.value="";}}/>
+      <input ref={fileRefYi} type="file" accept=".xlsx,.xls" style={{display:"none"}}
+        onChange={e=>{const f=e.target.files?.[0];if(f)parseSimple(f,"yurtici");e.target.value="";}}/>
+      <input ref={fileRefIh} type="file" accept=".xlsx,.xls" style={{display:"none"}}
+        onChange={e=>{const f=e.target.files?.[0];if(f)parseSimple(f,"ihracat");e.target.value="";}}/>
+      <input ref={fileRefMk} type="file" accept=".xlsx,.xls" style={{display:"none"}}
+        onChange={e=>{const f=e.target.files?.[0];if(f)parseMalKabul(f);e.target.value="";}}/>
     </div>
   );
 }
