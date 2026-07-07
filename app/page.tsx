@@ -426,12 +426,6 @@ export default function App(){
                 );
               })}
             </div>
-            {raporId&&(
-              <button onClick={resetRapor}
-                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#fff",color:C.red,border:`1.5px solid ${C.red}`,borderRadius:12,padding:"0 18px",height:mobile?48:62,fontWeight:800,fontSize:mobile?13:14,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                <span style={{fontSize:16}}>🗑️</span>Sıfırla
-              </button>
-            )}
             <button onClick={handleSave} disabled={saving}
               style={{display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 24px",height:mobile?48:62,fontWeight:900,fontSize:mobile?14:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
               <span style={{fontSize:18}}>{saving?"⏳":"🔗"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
@@ -538,6 +532,17 @@ export default function App(){
               <ContactCard/>
             </div>
           </div>
+
+          {raporId&&(
+            <div style={{textAlign:"right",marginTop:18,paddingTop:14,borderTop:`1px solid ${C.border}`}}>
+              <button onClick={resetRapor}
+                style={{background:"none",border:"none",color:C.muted,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:0.6,padding:"4px 2px"}}
+                onMouseEnter={e=>{e.currentTarget.style.opacity="1";e.currentTarget.style.color=C.red;}}
+                onMouseLeave={e=>{e.currentTarget.style.opacity="0.6";e.currentTarget.style.color=C.muted;}}>
+                🗑️ Bugünkü raporu sıfırla
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
