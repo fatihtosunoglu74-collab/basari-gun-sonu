@@ -428,8 +428,7 @@ export default function App(){
       {/* HEADER */}
       <header style={{minHeight:mobile?56:70,background:C.navyDk,display:"flex",alignItems:"center",flexWrap:"wrap",gap:mobile?8:0,padding:mobile?"8px 16px":"0 36px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px rgba(6,31,85,0.35)"}}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/basari-logo-white.png" alt="Başarı Otomotiv" style={{height:mobile?30:42,objectFit:"contain"}}
-          onError={e=>{const t=e.target as HTMLImageElement;t.src="/logo-full-color.png";t.style.filter="brightness(0) invert(1)";}}/>
+        <img src="/logo-white-clean.png" alt="Başarı Otomotiv" style={{height:mobile?30:42,objectFit:"contain"}}/>
         <div style={{width:1,height:mobile?24:36,background:"rgba(255,255,255,0.25)",margin:mobile?"0 12px":"0 22px"}}/>
         <span style={{color:"#fff",fontSize:mobile?16:22,fontWeight:900,letterSpacing:-0.4}}>Gün Sonu İzleme</span>
         {!mobile&&<span style={{display:"inline-flex",alignItems:"center",gap:8,marginLeft:20,color:"rgba(255,255,255,0.85)",fontSize:14,fontWeight:700}}>
