@@ -50,11 +50,13 @@ function Badge({type,label}:{type:string;label:string}){
   const br=type==="green"?"#BBF7D0":type==="yellow"?"#FDE68A":"#FECACA";
   return <span style={{display:"inline-flex",alignItems:"center",padding:"4px 11px",borderRadius:6,fontSize:11,fontWeight:900,letterSpacing:0.3,background:bg,color:cl,border:`1px solid ${br}`,whiteSpace:"nowrap"}}>{label}</span>;
 }
-function SummaryCard({type,title,val,sub}:{type:string;title:string;val:number;sub:string}){
+function SummaryCard({type,title,val,sub,onClick,active}:{type:string;title:string;val:number;sub:string;onClick?:()=>void;active?:boolean}){
   const cl=type==="red"?C.red:type==="yellow"?C.yellow:C.green;
   const ic=type==="red"?"📋":type==="yellow"?"🕐":"✓";
   return(
-    <div style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"20px 24px",display:"flex",alignItems:"center",gap:18,boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
+    <div onClick={onClick} style={{flex:1,background:active?`${cl}0F`:C.card,border:`${active?2:1}px solid ${active?cl:C.border}`,borderRadius:16,padding:"20px 24px",display:"flex",alignItems:"center",gap:18,
+      boxShadow:active?`0 8px 24px ${cl}33`:"0 6px 20px rgba(11,47,120,0.05)",cursor:onClick?"pointer":"default",transition:"all .15s",position:"relative"}}>
+      {active&&<span style={{position:"absolute",top:10,right:12,fontSize:11,fontWeight:900,color:cl}}>✕ Kaldır</span>}
       <div style={{width:72,height:72,borderRadius:"50%",border:`3px solid ${cl}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:type==="green"?30:26,color:cl,background:`${cl}0D`,flexShrink:0,fontWeight:900}}>{ic}</div>
       <div>
         <div style={{fontSize:13,fontWeight:900,color:cl,letterSpacing:0.5,marginBottom:3}}>{title}</div>
@@ -103,8 +105,10 @@ function DayEndSummary({title,rows}:{title:string;rows:[string,number,string][]}
 // ─── ANA SAYFA ────────────────────────────────────────────────────────────────
 export default function App(){
   const [tab,setTab]=useState<Tab>("yurtici");
+  
   const [mobile,setMobile]=useState(false);
   const [depoFiltre,setDepoFiltre]=useState("Tümü");
+  const [durumFiltre,setDurumFiltre]=useState<string>("");
   const [yiRows,setYiRows]=useState<Row[]>([]);
   const [ihRows,setIhRows]=useState<Row[]>([]);
   const [mkRows,setMkRows]=useState<MKRow[]>([]);
@@ -241,13 +245,16 @@ export default function App(){
 
   // ─── Filtreleme ────────────────────────────────────────────────────────────
   const depolar=Array.from(new Set([...yiRows.map(r=>r.depo),...ihRows.map(r=>r.depo),...mkRows.map(r=>r.depo)])).filter(Boolean);
-  const fYi=depoFiltre==="Tümü"?yiRows:yiRows.filter(r=>r.depo===depoFiltre);
-  const fIh=depoFiltre==="Tümü"?ihRows:ihRows.filter(r=>r.depo===depoFiltre);
-  const fMk=depoFiltre==="Tümü"?mkRows:mkRows.filter(r=>r.depo===depoFiltre);
+  const byDepo=<T extends{depo:string}>(arr:T[])=>depoFiltre==="Tümü"?arr:arr.filter(r=>r.depo===depoFiltre);
+  const dYi=byDepo(yiRows), dIh=byDepo(ihRows), dMk=byDepo(mkRows);
+  // Özet kartları depo filtresine göre (durum filtresinden ETKİLENMEZ — sayılar sabit kalsın)
+  const fYi=durumFiltre?dYi.filter(r=>r.type===durumFiltre):dYi;
+  const fIh=durumFiltre?dIh.filter(r=>r.type===durumFiltre):dIh;
+  const fMk=durumFiltre?dMk.filter(r=>r.type===durumFiltre):dMk;
 
-  const yiB=fYi.filter(r=>r.type==="red").length, yiI=fYi.filter(r=>r.type==="yellow").length, yiT=fYi.filter(r=>r.type==="green").length;
-  const ihB=fIh.filter(r=>r.type==="red").length, ihI=fIh.filter(r=>r.type==="yellow").length, ihT=fIh.filter(r=>r.type==="green").length;
-  const mkB=fMk.filter(r=>r.type==="red").length, mkI=fMk.filter(r=>r.type==="yellow").length, mkT=fMk.filter(r=>r.type==="green").length;
+  const yiB=dYi.filter(r=>r.type==="red").length, yiI=dYi.filter(r=>r.type==="yellow").length, yiT=dYi.filter(r=>r.type==="green").length;
+  const ihB=dIh.filter(r=>r.type==="red").length, ihI=dIh.filter(r=>r.type==="yellow").length, ihT=dIh.filter(r=>r.type==="green").length;
+  const mkB=dMk.filter(r=>r.type==="red").length, mkI=dMk.filter(r=>r.type==="yellow").length, mkT=dMk.filter(r=>r.type==="green").length;
 
   const th:React.CSSProperties={padding:"12px 16px",textAlign:"left",fontSize:12,fontWeight:800,color:C.muted,borderBottom:`1px solid ${C.border}`,letterSpacing:0.2,whiteSpace:"nowrap"};
   const td:React.CSSProperties={padding:"13px 16px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${C.border}`,color:C.text};
@@ -270,7 +277,7 @@ export default function App(){
         <div style={{display:"flex",alignItems:"center",gap:9,fontWeight:900,fontSize:15,color:C.text,letterSpacing:0.4}}>
           <span style={{fontSize:17}}>{icon}</span>{title}
         </div>
-        <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt{depoFiltre!=="Tümü"?` · ${depoFiltre}`:""}</span>
+        <span style={{fontSize:12,fontWeight:700,color:C.muted}}>{count} kayıt{depoFiltre!=="Tümü"?` · ${depoFiltre}`:""}{durumFiltre?` · ${durumFiltre==="red"?"Başlamadı":durumFiltre==="yellow"?"İşlemde":"Tamamlandı"} filtresi aktif`:""}</span>
       </div>
       <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch" as any}}>
         <table style={{width:"100%",minWidth:640,borderCollapse:"collapse"}}>
@@ -330,7 +337,7 @@ export default function App(){
               {TABS.map(t=>{
                 const act=tab===t.id;
                 return(
-                  <button key={t.id} onClick={()=>setTab(t.id)}
+                  <button key={t.id} onClick={()=>{setTab(t.id);setDurumFiltre("");}}
                     style={{flex:1,maxWidth:mobile?undefined:300,display:"flex",alignItems:"center",justifyContent:"center",gap:mobile?6:12,height:mobile?50:62,border:act?"none":`1px solid ${C.border}`,borderRadius:12,
                       background:act?C.navyDk:"#fff",color:act?"#fff":C.navy,fontSize:mobile?13:16,fontWeight:900,cursor:"pointer",fontFamily:"inherit",
                       boxShadow:act?"0 10px 26px rgba(6,31,85,0.30)":"0 4px 12px rgba(11,47,120,0.04)",transition:"all .15s"}}>
@@ -391,19 +398,19 @@ export default function App(){
             <div>
               <div style={{display:"flex",flexDirection:mobile?"column":"row",gap:mobile?10:14,marginBottom:18}}>
                 {tab==="yurtici"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş"/>
-                  <SummaryCard type="yellow" title="İŞLEMDE"    val={yiI} sub="Sipariş"/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={yiT} sub="Sipariş"/>
+                  <SummaryCard type="red"    title="BAŞLAMADI"  val={yiB} sub="Sipariş" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
+                  <SummaryCard type="yellow" title="İŞLEMDE"    val={yiI} sub="Sipariş" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                  <SummaryCard type="green"  title="TAMAMLANDI" val={yiT} sub="Sipariş" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
                 </>}
                 {tab==="ihracat"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={ihB} sub="Sevkiyat"/>
-                  <SummaryCard type="yellow" title="İŞLEMDE"    val={ihI} sub="Sevkiyat"/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={ihT} sub="Sevkiyat"/>
+                  <SummaryCard type="red"    title="BAŞLAMADI"  val={ihB} sub="Sevkiyat" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
+                  <SummaryCard type="yellow" title="İŞLEMDE"    val={ihI} sub="Sevkiyat" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                  <SummaryCard type="green"  title="TAMAMLANDI" val={ihT} sub="Sevkiyat" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
                 </>}
                 {tab==="malKabul"&&<>
-                  <SummaryCard type="red"    title="BAŞLAMADI"  val={mkB} sub="İrsaliye"/>
-                  <SummaryCard type="yellow" title="İŞLEMDE"    val={mkI} sub="İrsaliye"/>
-                  <SummaryCard type="green"  title="TAMAMLANDI" val={mkT} sub="İrsaliye"/>
+                  <SummaryCard type="red"    title="BAŞLAMADI"  val={mkB} sub="İrsaliye" active={durumFiltre==="red"}    onClick={()=>setDurumFiltre(f=>f==="red"?"":"red")}/>
+                  <SummaryCard type="yellow" title="İŞLEMDE"    val={mkI} sub="İrsaliye" active={durumFiltre==="yellow"} onClick={()=>setDurumFiltre(f=>f==="yellow"?"":"yellow")}/>
+                  <SummaryCard type="green"  title="TAMAMLANDI" val={mkT} sub="İrsaliye" active={durumFiltre==="green"}  onClick={()=>setDurumFiltre(f=>f==="green"?"":"green")}/>
                 </>}
               </div>
 
