@@ -140,9 +140,25 @@ export default function App(){
 
   useEffect(()=>{
     const id=new URLSearchParams(window.location.search).get("rapor");
-    if(id){setRaporId(id);setIsView(true);loadReport(id);
+    if(id){
+      setRaporId(id);setIsView(true);loadReport(id);
       const iv=setInterval(()=>loadReport(id).then(()=>setLastRefresh(new Date())),30000);
-      return()=>clearInterval(iv);}
+      return()=>clearInterval(iv);
+    } else {
+      // ?rapor= yoksa: bugüne ait bir kayıt var mı diye bak — varsa onu benimse
+      // (aynı gün farklı cihazlardan girilse bile hep AYNI rapor güncellensin, yeni link üretilmesin)
+      (async()=>{
+        try{
+          const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?tarih=eq.${todayStr()}&select=id&order=created_at.desc&limit=1`,
+            {headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
+          const d=await r.json();
+          if(d?.[0]?.id){
+            setRaporId(d[0].id);
+            setShareUrl(`${window.location.origin}?rapor=${d[0].id}`);
+          }
+        }catch{}
+      })();
+    }
   // eslint-disable-next-line
   },[]);
 
