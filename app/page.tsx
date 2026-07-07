@@ -174,6 +174,17 @@ export default function App(){
     }
   }
 
+  async function resetRapor(){
+    if(!window.confirm("Bugünkü raporu sıfırlamak istediğine emin misin? Yurtiçi, İhracat ve Mal Kabul'deki TÜM veriler silinecek, İrfan sıfırdan girecek."))return;
+    setYiRows([]);setIhRows([]);setMkRows([]);
+    setStU({yurtici:"idle",ihracat:"idle",malKabul:"idle"});
+    setMsgU({yurtici:"",ihracat:"",malKabul:""});
+    setDurumFiltre("");setDepoFiltre("Tümü");
+    if(raporId){
+      await sbUpdate(raporId,{yurtici_siparis:0,yurtici_fatura:0,yurtici_rows:[],ihracat_rows:[],malkabul_rows:[]});
+    }
+  }
+
   async function handleSave(){
     setSaving(true);
     const p={tarih:todayStr(),
@@ -415,6 +426,12 @@ export default function App(){
                 );
               })}
             </div>
+            {raporId&&(
+              <button onClick={resetRapor}
+                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#fff",color:C.red,border:`1.5px solid ${C.red}`,borderRadius:12,padding:"0 18px",height:mobile?48:62,fontWeight:800,fontSize:mobile?13:14,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                <span style={{fontSize:16}}>🗑️</span>Sıfırla
+              </button>
+            )}
             <button onClick={handleSave} disabled={saving}
               style={{display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:C.green,color:"#fff",border:"none",borderRadius:12,padding:"0 24px",height:mobile?48:62,fontWeight:900,fontSize:mobile?14:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(34,197,94,0.30)",fontFamily:"inherit",whiteSpace:"nowrap"}}>
               <span style={{fontSize:18}}>{saving?"⏳":"🔗"}</span>{saving?"Kaydediliyor...":"Kaydet ve Paylaş"}
