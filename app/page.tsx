@@ -123,6 +123,11 @@ export default function App(){
   const fileRefYi=useRef<HTMLInputElement>(null);
   const fileRefIh=useRef<HTMLInputElement>(null);
   const fileRefMk=useRef<HTMLInputElement>(null);
+  // Biri Excel yüklemeye başladığı an bu true olur — o andan itibaren 30sn'lik
+  // otomatik yenileme bu sekmede DURUR. Yoksa: İrfan bir Excel'i işlerken (birkaç
+  // sekme arası geçiş 30sn'yi bulabiliyor) arka plandaki poll Supabase'den eski/boş
+  // veriyi çekip onun henüz kaydetmediği yüklemelerini ezebiliyordu — "boş geldi" sorununun sebebi buydu.
+  const editingRef=useRef(false);
   const [raporId,setRaporId]=useState<string|null>(null);
   const [saving,setSaving]=useState(false);
   const [shareUrl,setShareUrl]=useState("");
@@ -142,7 +147,7 @@ export default function App(){
     const id=new URLSearchParams(window.location.search).get("rapor");
     if(id){
       setRaporId(id);setIsView(true);loadReport(id);
-      const iv=setInterval(()=>loadReport(id).then(()=>setLastRefresh(new Date())),30000);
+      const iv=setInterval(()=>{if(!editingRef.current)loadReport(id).then(()=>setLastRefresh(new Date()));},30000);
       return()=>clearInterval(iv);
     } else {
       // ?rapor= yoksa: bugüne ait bir kayıt var mı diye bak — varsa onu benimse
@@ -210,6 +215,7 @@ export default function App(){
 
   // ─── Ortak parser: Yurtiçi & İhracat — Firma|Depo|BelgeNo|Cari|Gönderi Tipi|Tarih|Durum
   async function parseSimple(file:File,target:"yurtici"|"ihracat"){
+    editingRef.current=true;
     setStU(s=>({...s,[target]:"loading"}));
     try{
       const XLSX=await import("xlsx");
@@ -249,6 +255,7 @@ export default function App(){
 
   // ─── Mal Kabul parser — Firma|Depo|BelgeNo|BelgeNo2|Tarih|Cari|Cari İsmi|Adet|Çeşit|Durum
   async function parseMalKabul(file:File){
+    editingRef.current=true;
     setStU(s=>({...s,malKabul:"loading"}));
     try{
       const XLSX=await import("xlsx");
