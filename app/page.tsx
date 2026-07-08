@@ -42,7 +42,7 @@ function displayDurum(durum:string,yellowLabel:string="Toplaması Devam Ediyor")
 // ─── Tipler ───────────────────────────────────────────────────────────────────
 interface Row{depo:string;no:string;musteri:string;tip:string;tarih:string;durum:string;type:string;}
 interface MKRow{depo:string;no:string;firma:string;tarih:string;adet:number;cesit:number;durum:string;type:string;}
-type Tab="yurtici"|"ihracat"|"malKabul";
+type Tab="ihracat"|"malKabul";
 type US="idle"|"loading"|"ok"|"err";
 
 const C={navy:"#0B2F78",navyDk:"#061F55",navyH:"#062B66",green:"#22C55E",red:"#EF4444",yellow:"#F59E0B",
@@ -128,17 +128,15 @@ function DayEndSummary({title,rows}:{title:string;rows:[string,number,string][]}
 
 // ─── ANA SAYFA ────────────────────────────────────────────────────────────────
 export default function App(){
-  const [tab,setTab]=useState<Tab>("yurtici");
+  const [tab,setTab]=useState<Tab>("ihracat");
   
   const [mobile,setMobile]=useState(false);
   const [depoFiltre,setDepoFiltre]=useState("Tümü");
   const [durumFiltre,setDurumFiltre]=useState<string>("");
-  const [yiRows,setYiRows]=useState<Row[]>([]);
   const [ihRows,setIhRows]=useState<Row[]>([]);
   const [mkRows,setMkRows]=useState<MKRow[]>([]);
-  const [stU,setStU]=useState<Record<Tab,US>>({yurtici:"idle",ihracat:"idle",malKabul:"idle"});
-  const [msgU,setMsgU]=useState<Record<Tab,string>>({yurtici:"",ihracat:"",malKabul:""});
-  const fileRefYi=useRef<HTMLInputElement>(null);
+  const [stU,setStU]=useState<Record<Tab,US>>({ihracat:"idle",malKabul:"idle"});
+  const [msgU,setMsgU]=useState<Record<Tab,string>>({ihracat:"",malKabul:""});
   const fileRefIh=useRef<HTMLInputElement>(null);
   const fileRefMk=useRef<HTMLInputElement>(null);
   // Biri Excel yüklemeye başladığı an bu true olur — o andan itibaren 30sn'lik
@@ -188,9 +186,6 @@ export default function App(){
   async function loadReport(id:string){
     const d=await sbLoad(id);
     if(d){
-      const yr=d.yurtici_rows;
-      if(Array.isArray(yr))setYiRows(yr);
-      else if(yr?.rows)setYiRows(yr.rows);
       if(Array.isArray(d.ihracat_rows))setIhRows(d.ihracat_rows);
       if(Array.isArray(d.malkabul_rows))setMkRows(d.malkabul_rows);
       setLastRefresh(new Date());
@@ -198,21 +193,19 @@ export default function App(){
   }
 
   async function resetRapor(){
-    if(!window.confirm("Bugünkü raporu sıfırlamak istediğine emin misin? Yurtiçi, İhracat ve Mal Kabul'deki TÜM veriler silinecek, İrfan sıfırdan girecek."))return;
-    setYiRows([]);setIhRows([]);setMkRows([]);
-    setStU({yurtici:"idle",ihracat:"idle",malKabul:"idle"});
-    setMsgU({yurtici:"",ihracat:"",malKabul:""});
+    if(!window.confirm("Bugünkü raporu sıfırlamak istediğine emin misin? İhracat ve Mal Kabul'deki TÜM veriler silinecek."))return;
+    setIhRows([]);setMkRows([]);
+    setStU({ihracat:"idle",malKabul:"idle"});
+    setMsgU({ihracat:"",malKabul:""});
     setDurumFiltre("");setDepoFiltre("Tümü");
     if(raporId){
-      await sbUpdate(raporId,{yurtici_siparis:0,yurtici_fatura:0,yurtici_rows:[],ihracat_rows:[],malkabul_rows:[]});
+      await sbUpdate(raporId,{ihracat_rows:[],malkabul_rows:[]});
     }
   }
 
   async function handleSave(){
     setSaving(true);
-    const p={tarih:todayStr(),
-      yurtici_siparis:yiRows.length,yurtici_fatura:yiRows.filter(r=>r.type==="green").length,
-      yurtici_rows:yiRows,ihracat_rows:ihRows,malkabul_rows:mkRows};
+    const p={tarih:todayStr(),ihracat_rows:ihRows,malkabul_rows:mkRows};
     let id=raporId;
     if(id){await sbUpdate(id,p);}
     else{id=await sbSave(p);if(id){setRaporId(id);const u=`${window.location.origin}?rapor=${id}`;setShareUrl(u);window.history.pushState({},"",`?rapor=${id}`);}}
@@ -242,7 +235,7 @@ export default function App(){
   }
 
   // ─── Ortak parser: Yurtiçi & İhracat — Firma|Depo|BelgeNo|Cari|Gönderi Tipi|Tarih|Durum
-  async function parseSimple(file:File,target:"yurtici"|"ihracat"){
+  async function parseSimple(file:File,target:"ihracat"){
     editingRef.current=true;
     setStU(s=>({...s,[target]:"loading"}));
     try{
@@ -271,8 +264,7 @@ export default function App(){
         rows.push({depo:normDepo(sv(r[iDep>=0?iDep:1]))||fileDepo,no:sv(r[iBno>=0?iBno:2])||("BLG-"+Math.random().toString(36).slice(2,8)),
           musteri:mus,tip:sv(r[iTip>=0?iTip:4])||"—",tarih:xd(r[iTar>=0?iTar:5]),durum,type:zeusType(durum)});
       }
-      if(target==="yurtici")setYiRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
-      else setIhRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
+      setIhRows(prev=>[...prev.filter(x=>x.depo!==fileDepo),...rows]);
       setMsgU(m=>({...m,[target]:`${fileDepo} · ${rows.length} kayıt yüklendi`}));
       setStU(s=>({...s,[target]:"ok"}));
     }catch{
@@ -323,30 +315,27 @@ export default function App(){
 
   // ─── Filtreleme ────────────────────────────────────────────────────────────
   // Depo listesi artık sekmeye özel — Yurtiçi'nde sadece TEM.34 varken Mal Kabul'da ikisi de olabilir
-  const depolarYi=Array.from(new Set(yiRows.map(r=>r.depo))).filter(Boolean);
   const depolarIh=Array.from(new Set(ihRows.map(r=>r.depo))).filter(Boolean);
   const depolarMk=Array.from(new Set(mkRows.map(r=>r.depo))).filter(Boolean);
-  const activeDepolar=tab==="yurtici"?depolarYi:tab==="ihracat"?depolarIh:depolarMk;
+  const activeDepolar=tab==="ihracat"?depolarIh:depolarMk;
 
   // Sağdaki GÜN SONU ÖZETİ her zaman TÜM depoların toplamı — depo filtresinden etkilenmez,
   // böylece "Tümü" seçiliyken karışan bir toplam değil, her zaman net bir genel toplam görünür
   const grand=<T extends{type:string}>(arr:T[])=>({b:arr.filter(r=>r.type==="red").length,y:arr.filter(r=>r.type==="yellow").length,g:arr.filter(r=>r.type==="green").length});
-  const yiG=grand(yiRows), ihG=grand(ihRows), mkG=grand(mkRows);
+  const ihG=grand(ihRows), mkG=grand(mkRows);
 
   const th:React.CSSProperties={padding:"12px 16px",textAlign:"left",fontSize:12,fontWeight:800,color:C.muted,borderBottom:`1px solid ${C.border}`,letterSpacing:0.2,whiteSpace:"nowrap"};
   const td:React.CSSProperties={padding:"13px 16px",fontSize:13,fontWeight:700,borderBottom:`1px solid ${C.border}`,color:C.text};
 
   const TABS:{id:Tab;label:string;icon:string}[]=[
-    {id:"yurtici",label:"Yurtiçi",icon:"🚚"},
     {id:"ihracat",label:"İhracat",icon:"🚢"},
     {id:"malKabul",label:"Mal Kabul",icon:"🏭"},
   ];
   const UPLOAD:{[k in Tab]:{title:string;sub:string}}={
-    yurtici: {title:"Yurtiçi Excel Dosyası Yükle",  sub:"Zeus'tan aldığın yurtiçi sipariş raporunu yükle."},
     ihracat: {title:"İhracat Excel Dosyası Yükle",  sub:"Zeus'tan aldığın ihracat sipariş raporunu yükle."},
     malKabul:{title:"Mal Kabul Excel Dosyası Yükle",sub:"Zeus'tan aldığın irsaliye raporunu yükle."},
   };
-  const currentRef=tab==="yurtici"?fileRefYi:tab==="ihracat"?fileRefIh:fileRefMk;
+  const currentRef=tab==="ihracat"?fileRefIh:fileRefMk;
 
   const tableCard=(icon:string,title:string,count:number,head:string[],body:React.ReactNode,depotLabel?:string,mobileList?:React.ReactNode)=>(
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 6px 20px rgba(11,47,120,0.05)"}}>
@@ -440,7 +429,7 @@ export default function App(){
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo-white-clean.png" alt="Başarı Otomotiv" style={{height:mobile?30:42,objectFit:"contain"}}/>
         <div style={{width:1,height:mobile?24:36,background:"rgba(255,255,255,0.25)",margin:mobile?"0 12px":"0 22px"}}/>
-        <span style={{color:"#fff",fontSize:mobile?16:22,fontWeight:900,letterSpacing:-0.4}}>Gün Sonu İzleme</span>
+        <span style={{color:"#fff",fontSize:mobile?16:22,fontWeight:900,letterSpacing:-0.4}}>Gün Sonu İzleme <span style={{fontSize:mobile?11:13,fontWeight:700,color:"rgba(255,255,255,0.55)"}}>· Yönetim</span></span>
         {!mobile&&<span style={{display:"inline-flex",alignItems:"center",gap:8,marginLeft:20,color:"rgba(255,255,255,0.85)",fontSize:14,fontWeight:700}}>
           <span style={{fontSize:16}}>📅</span>{today}
         </span>}
@@ -544,26 +533,6 @@ export default function App(){
 
             {/* SOL */}
             <div>
-              {tab==="yurtici"&&renderDepotSections(yiRows,depolarYi,"Sipariş","📋","SİPARİŞ LİSTESİ",
-                ["Belge No","Müşteri","Gönderi Tipi","Depo","Tarih","Durum"],6,
-                (r,i)=>(
-                  <tr key={i}>
-                    <td style={{...td,fontWeight:900}}>{r.no}</td>
-                    <td style={td}>{r.musteri}</td>
-                    <td style={td}>{r.tip}</td>
-                    <td style={td}><Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/></td>
-                    <td style={td}>{r.tarih}</td>
-                    <td style={td}><Badge type={r.type} label={displayDurum(r.durum)}/></td>
-                  </tr>
-                ),
-                "Excel yüklendikten sonra siparişler burada listelenir",
-                "Toplaması Devam Ediyor",
-                (r,i)=>(
-                  <MobileCard key={i} title={<>{r.musteri}<div style={{fontSize:11,color:C.muted,fontWeight:700,marginTop:2}}>{r.no}</div></>}
-                    badge={<Badge type={r.type} label={displayDurum(r.durum)}/>}
-                    meta={[{label:"Tip",value:r.tip},{label:"Depo",value:<Badge type={r.depo==="KARTEPE"?"yellow":"green"} label={r.depo}/>},{label:"Tarih",value:r.tarih}]}/>
-                )
-              )}
               {tab==="ihracat"&&renderDepotSections(ihRows,depolarIh,"Sevkiyat","🚢","İHRACAT SEVKİYAT LİSTESİ",
                 ["Belge No","Müşteri","Depo","Tarih","Durum"],5,
                 (r,i)=>(
@@ -608,8 +577,6 @@ export default function App(){
 
             {/* SAĞ */}
             <div>
-              {tab==="yurtici"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
-                ["Toplam Sipariş",yiRows.length,"#fff"],["Başlamadı",yiG.b,"#FCA5A5"],["Toplaması Devam Ediyor",yiG.y,"#FCD34D"],["Tamamlandı",yiG.g,"#86EFAC"]]}/>}
               {tab==="ihracat"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
                 ["Toplam Sevkiyat",ihRows.length,"#fff"],["Başlamadı",ihG.b,"#FCA5A5"],["Toplaması Devam Ediyor",ihG.y,"#FCD34D"],["Tamamlandı",ihG.g,"#86EFAC"]]}/>}
               {tab==="malKabul"&&<DayEndSummary title="GÜN SONU ÖZETİ · Tüm Depolar" rows={[
@@ -631,8 +598,6 @@ export default function App(){
         </div>
       </div>
 
-      <input ref={fileRefYi} type="file" accept=".xlsx,.xls" style={{display:"none"}}
-        onChange={e=>{const f=e.target.files?.[0];if(f)parseSimple(f,"yurtici");e.target.value="";}}/>
       <input ref={fileRefIh} type="file" accept=".xlsx,.xls" style={{display:"none"}}
         onChange={e=>{const f=e.target.files?.[0];if(f)parseSimple(f,"ihracat");e.target.value="";}}/>
       <input ref={fileRefMk} type="file" accept=".xlsx,.xls" style={{display:"none"}}
