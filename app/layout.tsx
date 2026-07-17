@@ -12,11 +12,19 @@ export const metadata: Metadata = {
     siteName: "Başarı Otomotiv",
     locale: "tr_TR",
     type: "website",
+    images: [
+      {
+        url: "/opengraph-image.jpg",
+        width: 1200,
+        height: 630,
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Gün Sonu İzleme — Başarı Otomotiv",
     description: "Zeus WMS'ten anlık yurtiçi, ihracat ve mal kabul takibi.",
+    images: ["/opengraph-image.jpg"],
   },
 };
 
