@@ -171,11 +171,13 @@ export default function App(){
       let iv:ReturnType<typeof setInterval>|undefined;
       (async()=>{
         try{
-          const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?tarih=eq.${todayStr()}&select=id&order=created_at.desc&limit=1`,
+          const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?tarih=eq.${todayStr()}&select=id,ihracat_rows,malkabul_rows&order=created_at.desc&limit=20`,
             {headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
           const d=await r.json();
-          if(d?.[0]?.id){
-            const rid=d[0].id as string;
+          if(Array.isArray(d)&&d.length){
+            const dolu=d.find((x:any)=>(Array.isArray(x.ihracat_rows)&&x.ihracat_rows.length)||(Array.isArray(x.malkabul_rows)&&x.malkabul_rows.length));
+            const sec=dolu||d[0];
+            const rid=sec.id as string;
             setRaporId(rid);setIsView(true);
             setShareUrl(`${window.location.origin}?rapor=${rid}`);
             loadReport(rid);
