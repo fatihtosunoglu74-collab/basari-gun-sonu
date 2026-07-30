@@ -168,17 +168,22 @@ export default function App(){
     } else {
       // ?rapor= yoksa: bugüne ait bir kayıt var mı diye bak — varsa onu benimse
       // (aynı gün farklı cihazlardan girilse bile hep AYNI rapor güncellensin, yeni link üretilmesin)
+      let iv:ReturnType<typeof setInterval>|undefined;
       (async()=>{
         try{
           const r=await fetch(`${SB_URL}/rest/v1/${TABLE}?tarih=eq.${todayStr()}&select=id&order=created_at.desc&limit=1`,
             {headers:{apikey:SB_KEY,Authorization:`Bearer ${SB_KEY}`}});
           const d=await r.json();
           if(d?.[0]?.id){
-            setRaporId(d[0].id);
-            setShareUrl(`${window.location.origin}?rapor=${d[0].id}`);
+            const rid=d[0].id as string;
+            setRaporId(rid);setIsView(true);
+            setShareUrl(`${window.location.origin}?rapor=${rid}`);
+            loadReport(rid);
+            iv=setInterval(()=>{if(!editingRef.current)loadReport(rid).then(()=>setLastRefresh(new Date()));},30000);
           }
         }catch{}
       })();
+      return()=>{if(iv)clearInterval(iv);};
     }
   // eslint-disable-next-line
   },[]);
@@ -605,3 +610,4 @@ export default function App(){
     </div>
   );
 }
+
